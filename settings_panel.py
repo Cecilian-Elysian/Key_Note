@@ -34,6 +34,15 @@ _FONT_CHOICES = [
 ]
 
 
+_HOTKEY_CHOICES = [
+    "ctrl+shift+k",
+    "ctrl+alt+k",
+    "alt+shift+k",
+    "ctrl+shift+s",
+    "ctrl+alt+s",
+]
+
+
 def _retention_label_to_int(label: str) -> int:
     for n, d in _RETENTION_CHOICES:
         if n == label:
@@ -65,6 +74,11 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             ("switch", "start_minimized", "启动时最小化到托盘"),
             ("switch", "listener_enabled", "启动时启动键盘监听"),
             ("slider_int", "idle_pause_min", "闲置 N 分钟后自动暂停记录 (0=禁用)", 0, 60),
+        ])
+
+        self._build_group("全局热键", [
+            ("switch", "enable_global_hotkey", "启用全局热键切换主窗口"),
+            ("combo_hotkey", "global_hotkey", "热键组合"),
         ])
 
         self._build_group("界面", [
@@ -124,6 +138,9 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             elif kind == "combo_font":
                 _, key, label = r
                 self._build_combo_row(frame, key, label, _FONT_CHOICES)
+            elif kind == "combo_hotkey":
+                _, key, label = r
+                self._build_combo_row(frame, key, label, _HOTKEY_CHOICES)
 
     def _make_row(self, parent, label_text: str) -> tuple:
         row = ctk.CTkFrame(parent)

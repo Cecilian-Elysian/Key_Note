@@ -1,6 +1,7 @@
 """pystray 系统托盘"""
 import sys
 import threading
+import time
 import winreg
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -21,10 +22,16 @@ KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 _RETENTION_OPTIONS = [("永久", 0), ("7 天", 7), ("180 天", 180), ("365 天", 365), ("730 天", 730)]
 
 
-def _icon_image() -> Image.Image:
-    img = Image.new("RGB", (64, 64), (30, 144, 255))
+def _icon_image(state: str = "active") -> Image.Image:
+    palette = {
+        "active": ((30, 144, 255), (255, 255, 255)),
+        "paused": ((120, 120, 120), (200, 200, 200)),
+        "idle":   ((255, 193, 7),   (255, 255, 255)),
+    }
+    bg, fg = palette.get(state, palette["active"])
+    img = Image.new("RGB", (64, 64), bg)
     d = ImageDraw.Draw(img)
-    d.rectangle([12, 20, 52, 44], fill="white")
+    d.rectangle([12, 20, 52, 44], fill=fg)
     return img
 
 
@@ -80,7 +87,7 @@ def start(window: "App") -> Icon:
                     window.deiconify(),
                     window.lift(),
                     window.focus_force(),
-                    window.tabs.set("设置"),
+                    window._show_page("settings"),
                 ),
             )
         except Exception:
@@ -142,6 +149,57 @@ def start(window: "App") -> Icon:
 
             return _h
 
+        def _streak_label(_text):
+            return f"连续打卡: {db.streak_days(365)} 天"
+
+        def _rate_1h_label(_text):
+            rows = db.rate_series(1)
+            total = sum(c for _, c in rows)
+            avg = total / max(1, len(rows))
+            return f"近 1h 平均: {avg:.1f}/分钟"
+
+        realtime_submenu = Menu(
+            MenuItem(
+                lambda text: f"总按键: {db.count_total():,}",
+                None,
+                enabled=False,
+            ),
+            MenuItem(
+                lambda text: f"今日: {db.count_today():,}",
+                None,
+                enabled=False,
+            ),
+            MenuItem(_streak_label, None, enabled=False),
+            MenuItem(_rate_1h_label, None, enabled=False),
+        )
+
+        def _recent_bars():
+            rows = db.rate_series(1)
+            bucket = [0] * 5
+            now_ms = int(time.time() * 1000)
+            cutoff = now_ms - 5 * 60 * 1000
+            for ts, c in rows:
+                if ts < cutoff:
+                    continue
+                idx = min(4, max(0, (ts - cutoff) // 60000))
+                bucket[4 - idx] += c
+            peak = max(bucket) or 1
+            glyphs = " ▁▂▃▄▅▆▇█"
+            return "".join(glyphs[min(8, int((v / peak) * 8))] for v in bucket)
+
+        recent_submenu = Menu(
+            MenuItem(
+                lambda text: f"最近 5 分钟: {_recent_bars()}",
+                None,
+                enabled=False,
+            ),
+            MenuItem(
+                lambda text: f"当前状态: {'⏸ 暂停' if listener.is_paused() else '● 记录中'}",
+                None,
+                enabled=False,
+            ),
+        )
+
         data_submenu = Menu(
             MenuItem(
                 lambda text: f"总按键: {db.count_total():,}",
@@ -189,6 +247,8 @@ def start(window: "App") -> Icon:
             ),
             MenuItem("⚙ 设置...", _open_settings),
             Menu.SEPARATOR,
+            MenuItem("📈 实时统计", realtime_submenu),
+            MenuItem("🕐 最近活动", recent_submenu),
             MenuItem("📊 数据管理", data_submenu),
             Menu.SEPARATOR,
             MenuItem("退出", _quit),
