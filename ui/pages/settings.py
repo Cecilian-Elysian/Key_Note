@@ -17,7 +17,7 @@ class SettingsPage(BasePage):
             self,
             on_save_callback=self.app._on_settings_changed,
         )
-        self._panel.pack(fill="both", expand=True, padx=8, pady=8)
+        self._panel.pack(fill="both", expand=True, padx=4, pady=4)
 
     def _do_refresh(self) -> None:
         if hasattr(self, "_panel"):

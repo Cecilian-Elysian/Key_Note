@@ -1,15 +1,4 @@
-"""主窗口:侧边栏 + 多页布局。
-
-架构:
-  Sidebar | PageArea
-                ├─ DashboardPage
-                ├─ RatePage
-                ├─ HeatmapPage
-                ├─ TopKeysPage
-                └─ SettingsPage
-
-页面采用懒加载,切换时才构建。所有页面统一通过 app.refresh() 触发数据更新。
-"""
+"""主窗口:仪表盘单页布局。"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -22,7 +11,6 @@ import matplotlib.pyplot as plt
 import config
 import db
 import listener
-import settings_panel
 import theme
 
 try:
@@ -66,7 +54,7 @@ class App(ctk.CTk):
             except Exception:
                 pass
 
-        self.title("KeyNote · 键盘记录")
+        self.title("KeyNote")
         self._apply_geometry(self.cfg)
         try:
             self.attributes("-alpha", float(self.cfg.get("window_alpha", 1.0)))
@@ -110,87 +98,32 @@ class App(ctk.CTk):
                     return
                 except Exception:
                     pass
-        self.geometry("1100x720")
-        self.minsize(900, 600)
+        self.geometry("400x500")
+        self.minsize(380, 450)
 
     def _build_ui(self) -> None:
         c = theme.current().colors
+        self.configure(fg_color=c.bg_primary)
 
-        top = ctk.CTkFrame(self, height=44, fg_color=c.bg_secondary)
+        top = ctk.CTkFrame(self, height=28, fg_color=c.bg_secondary)
         top.pack(fill="x")
         top.pack_propagate(False)
 
         self.status_lbl = ctk.CTkLabel(
-            top, text="●记录中", text_color=c.success, font=("", 13, "bold")
+            top, text="●记录中", text_color=c.success, font=("", 11, "bold")
         )
-        self.status_lbl.pack(side="left", padx=14)
-        self.today_lbl = ctk.CTkLabel(top, text="今日: 0", text_color=c.fg_primary)
-        self.today_lbl.pack(side="left", padx=14)
-        self.total_lbl = ctk.CTkLabel(top, text="总计: 0", text_color=c.fg_primary)
-        self.total_lbl.pack(side="left", padx=14)
-        self.db_lbl = ctk.CTkLabel(top, text="", text_color=c.fg_muted, font=("", 11))
-        self.db_lbl.pack(side="right", padx=14)
+        self.status_lbl.pack(side="left", padx=8)
+        self.today_lbl = ctk.CTkLabel(top, text="今日: 0", text_color=c.fg_primary, font=("", 10))
+        self.today_lbl.pack(side="left", padx=6)
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = ctk.CTkFrame(self, fg_color=c.bg_primary)
         body.pack(fill="both", expand=True)
 
-        from ui import Sidebar
-
-        body.columnconfigure(0, weight=0, minsize=180)
-        body.columnconfigure(1, weight=0, minsize=1)
-        body.columnconfigure(2, weight=1)
-        body.rowconfigure(0, weight=1)
-
-        self._sidebar = Sidebar(body, on_select=self._show_page)
-        self._sidebar.grid(row=0, column=0, sticky="nsw")
-
-        sep = ctk.CTkFrame(body, width=1, fg_color=c.border)
-        sep.grid(row=0, column=1, sticky="ns")
-
-        self._page_area = ctk.CTkFrame(body, fg_color="transparent")
-        self._page_area.grid(row=0, column=2, sticky="nsew")
-
-        self._pages: dict[str, object] = {}
-        self._active_page: Optional[str] = None
-        self._show_page("dashboard")
-
-    def _show_page(self, name: str) -> None:
-        self._sidebar.set_active(name)
-        if self._active_page and self._active_page in self._pages:
-            self._pages[self._active_page].pack_forget()
-        if name not in self._pages:
-            page = self._create_page(name)
-            self._pages[name] = page
-        self._pages[name].pack(fill="both", expand=True)
-        self._pages[name].ensure_built()
-        self._active_page = name
-        self.after(100, lambda n=name: self._safe_refresh(n))
-
-    def _safe_refresh(self, name: str) -> None:
-        try:
-            if name in self._pages:
-                self._pages[name].refresh()
-        except Exception:
-            pass
-
-    def _create_page(self, name: str):
         from ui.pages.dashboard import DashboardPage
-        from ui.pages.heatmap import HeatmapPage
-        from ui.pages.rate import RatePage
-        from ui.pages.settings import SettingsPage
-        from ui.pages.top_keys import TopKeysPage
 
-        mapping = {
-            "dashboard": DashboardPage,
-            "rate": RatePage,
-            "heatmap": HeatmapPage,
-            "top_keys": TopKeysPage,
-            "settings": SettingsPage,
-        }
-        cls = mapping.get(name)
-        if cls is None:
-            raise ValueError(f"unknown page: {name}")
-        return cls(self._page_area, self)
+        self._dashboard = DashboardPage(body, self)
+        self._dashboard.pack(fill="both", expand=True)
+        self._dashboard.ensure_built()
 
     def _toggle(self):
         if listener.is_paused():
@@ -206,23 +139,13 @@ class App(ctk.CTk):
         else:
             self.status_lbl.configure(text="● 记录中", text_color=c.success)
         self.today_lbl.configure(text=f"今日: {db.count_today():,}")
-        self.total_lbl.configure(text=f"总计: {db.count_total():,}")
-        h = db.health()
-        size_mb = h.get("size_bytes", 0) / (1024 * 1024)
-        last_bk_ts = h.get("last_backup_ts", 0)
-        if last_bk_ts:
-            last_bk = datetime.fromtimestamp(last_bk_ts).strftime("%m-%d %H:%M")
-        else:
-            last_bk = "无"
-        self.db_lbl.configure(text=f"DB: {size_mb:.1f}MB · 备份: {last_bk}")
 
     def refresh(self) -> None:
         self.refresh_status()
-        for page in self._pages.values():
-            try:
-                page.refresh()
-            except Exception:
-                pass
+        try:
+            self._dashboard.refresh()
+        except Exception:
+            pass
 
     def _auto_refresh(self) -> None:
         if not listener.is_paused():
@@ -250,7 +173,6 @@ class App(ctk.CTk):
             return
         try:
             import time as _t
-
             elapsed_min = (_t.monotonic() - self._last_keypress_mono) / 60.0
         except Exception:
             return
@@ -267,7 +189,6 @@ class App(ctk.CTk):
 
     def on_keypress(self) -> None:
         import time as _t
-
         self._last_keypress_mono = _t.monotonic()
 
     def _on_close(self) -> None:
@@ -299,9 +220,7 @@ class App(ctk.CTk):
         old = self.cfg
         self.cfg = dict(new_cfg)
         try:
-            self.attributes(
-                "-alpha", float(self.cfg.get("window_alpha", 1.0))
-            )
+            self.attributes("-alpha", float(self.cfg.get("window_alpha", 1.0)))
         except Exception:
             pass
         theme_name = str(self.cfg.get("theme", "dark"))
@@ -338,21 +257,15 @@ class App(ctk.CTk):
             and self._last_keypress_mono == 0.0
         ):
             import time as _t
-
             self._last_keypress_mono = _t.monotonic()
         self.refresh()
 
     def _apply_theme_change(self, theme_name: str) -> None:
         theme.apply_theme(theme_name)
         try:
-            self._sidebar.apply_theme()
+            self._dashboard.apply_theme()
         except Exception:
             pass
-        for page in self._pages.values():
-            try:
-                page.apply_theme()
-            except Exception:
-                pass
         self.refresh()
 
     def _apply_font_change(self) -> None:

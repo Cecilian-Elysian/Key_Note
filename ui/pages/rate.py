@@ -3,14 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import customtkinter as ctk
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 
 import db
 import theme
 from ui.pages.base import BasePage
+from ui.widgets.chart_utils import create_resizable_canvas, fit_canvas
 
 
 class RatePage(BasePage):
@@ -18,22 +16,18 @@ class RatePage(BasePage):
 
     def _build(self) -> None:
         c = theme.current().colors
-        self._fig = Figure(figsize=(9, 5), dpi=80, facecolor=c.chart_face)
-        self._mpl_canvas = FigureCanvasTkAgg(self._fig, master=self)
-        widget = self._mpl_canvas.get_tk_widget()
-        widget.pack(fill="both", expand=True, padx=16, pady=16)
-
-        def _on_resize(event, fig=self._fig, canvas=self._mpl_canvas):
-            if event.width > 100 and event.height > 100:
-                fig.set_size_inches(
-                    event.width / fig.dpi - 0.4,
-                    event.height / fig.dpi - 0.4,
-                )
-                canvas.draw_idle()
-
-        widget.bind("<Configure>", _on_resize)
+        self._fig, self._mpl_canvas = create_resizable_canvas(
+            self,
+            initial_size=(8, 4.5),
+            dpi=72,
+            margin=0.08,
+            padx=4,
+            pady=4,
+        )
+        self._fig.set_facecolor(c.chart_face)
 
     def _do_refresh(self) -> None:
+        fit_canvas(self._fig, self._mpl_canvas)
         c = theme.current().colors
         cfg = self.app.cfg
         plt.style.use(theme.current().plt_style)
@@ -48,16 +42,18 @@ class RatePage(BasePage):
         ax.set_title(
             f"过去 {cfg.get('rate_chart_hours', 24)}h · 每分钟按键数",
             color=c.fg_primary,
-            fontsize=12,
+            fontsize=10,
         )
-        ax.set_xlabel("时间", color=c.fg_secondary)
-        ax.set_ylabel("按键/分钟", color=c.fg_secondary)
-        ax.tick_params(colors=c.fg_muted)
+        ax.set_xlabel("时间", color=c.fg_secondary, fontsize=8)
+        ax.set_ylabel("按键/分钟", color=c.fg_secondary, fontsize=8)
+        ax.tick_params(colors=c.fg_muted, labelsize=7)
         ax.grid(True, alpha=0.2)
         ax.set_facecolor(c.chart_face)
         self._fig.autofmt_xdate()
-        self._fig.tight_layout()
+        self._fig.tight_layout(pad=0.3)
         self._mpl_canvas.draw()
 
     def _do_apply_theme(self) -> None:
+        c = theme.current().colors
+        self._fig.set_facecolor(c.chart_face)
         self._do_refresh()

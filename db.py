@@ -501,6 +501,22 @@ def streak_days(days: int = 365) -> int:
     return streak
 
 
+def daily_average(days: int = 7) -> int:
+    """返回过去 N 天平均每日按键数(无数据的天按 0 计入分母)。"""
+    if days <= 0:
+        return 0
+    rows = daily_counts(days)
+    counts_by_day = {day_ts // 86400000: c for day_ts, c in rows}
+    end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
+    start_key = int(start_dt.timestamp() // 86400)
+    end_key = int(end_dt.timestamp() // 86400)
+    total = 0
+    for k in range(start_key, end_key + 1):
+        total += counts_by_day.get(k, 0)
+    return total // days
+
+
 def backup(manual: bool = False) -> Optional[Path]:
     """创建一致性快照,返回备份文件路径"""
     if _conn is None:

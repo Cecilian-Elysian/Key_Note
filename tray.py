@@ -57,6 +57,19 @@ def _set_autostart(enable: bool) -> None:
         print(f"autostart err: {e}")
 
 
+def _open_settings_toplevel(master):
+    import customtkinter as ctk
+    from settings_panel import SettingsPanel
+
+    top = ctk.CTkToplevel(master)
+    top.title("KeyNote 设置")
+    top.geometry("400x480")
+    top.resizable(False, False)
+    panel = SettingsPanel(top, on_save_callback=master._on_settings_changed)
+    panel.pack(fill="both", expand=True)
+    panel.load_values(master.cfg)
+
+
 def start(window: "App") -> Icon:
     cfg = config.load()
     icon_ref: dict = {"icon": None}
@@ -81,15 +94,7 @@ def start(window: "App") -> Icon:
 
     def _open_settings(_icon, _item):
         try:
-            window.after(
-                0,
-                lambda: (
-                    window.deiconify(),
-                    window.lift(),
-                    window.focus_force(),
-                    window._show_page("settings"),
-                ),
-            )
+            window.after(0, lambda: _open_settings_toplevel(window))
         except Exception:
             pass
 
