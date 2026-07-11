@@ -1,31 +1,36 @@
-"""customtkinter 主窗口,含 3 个图表 + 设置 Tab"""
+"""主窗口:侧边栏 + 多页布局。
+
+架构:
+  Sidebar | PageArea
+                ├─ DashboardPage
+                ├─ RatePage
+                ├─ HeatmapPage
+                ├─ TopKeysPage
+                └─ SettingsPage
+
+页面采用懒加载,切换时才构建。所有页面统一通过 app.refresh() 触发数据更新。
+"""
+from __future__ import annotations
+
 from datetime import datetime
 from tkinter import font as tkfont
 from typing import Optional
 
 import customtkinter as ctk
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 
 import config
 import db
 import listener
 import settings_panel
+import theme
 
 try:
     import tray as _tray
 except Exception:
     _tray = None
 
-ctk.set_appearance_mode(config.DEFAULTS.get("theme", "dark"))
-ctk.set_default_color_theme("blue")
-plt.style.use("dark_background")
-
 CJK_FONT = "Microsoft YaHei"
-plt.rcParams["font.sans-serif"] = [CJK_FONT, "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
-
 CTK_FONT_CANDIDATES = (
     "Microsoft YaHei UI",
     "Microsoft YaHei",
@@ -36,8 +41,7 @@ CTK_FONT_CANDIDATES = (
 )
 
 
-def _pick_font() -> str | None:
-    """在 Tk 根窗口已建后调用,返回首个可用中文字体"""
+def _pick_font() -> Optional[str]:
     try:
         available = set(tkfont.families())
     except Exception:
@@ -52,22 +56,26 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.cfg = config.load()
-        self._init_appearance()
+        theme.apply_theme(self.cfg.get("theme", "dark"))
+
         font = self._pick_app_font()
         if font:
             try:
-                default_font = tkfont.nametofont("TkDefaultFont")
-                default_font.configure(family=font)
-                tkfont.nametofont("TkTextFont").configure(family=font)
-                tkfont.nametofont("TkHeadingFont").configure(family=font)
+                for n in ("TkDefaultFont", "TkTextFont", "TkHeadingFont"):
+                    tkfont.nametofont(n).configure(family=font)
             except Exception:
                 pass
-        self.title("KeyNote - 键盘记录")
+
+        self.title("KeyNote · 键盘记录")
         self._apply_geometry(self.cfg)
         try:
             self.attributes("-alpha", float(self.cfg.get("window_alpha", 1.0)))
         except Exception:
             pass
+
+        plt.rcParams["font.sans-serif"] = [font or CJK_FONT, "DejaVu Sans"]
+        plt.rcParams["axes.unicode_minus"] = False
+
         self._refresh_after_id: Optional[str] = None
         self._last_keypress_mono: float = 0.0
         self._was_paused_by_idle: bool = False
@@ -75,15 +83,11 @@ class App(ctk.CTk):
             listener.register_activity_callback(self.on_keypress)
         except Exception:
             pass
+
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
         self.refresh()
         self._schedule_auto_refresh()
-
-    def _init_appearance(self) -> None:
-        theme = str(self.cfg.get("theme", "dark"))
-        ctk.set_appearance_mode(theme)
-        plt.style.use("dark_background" if theme == "dark" else "default")
 
     def _pick_app_font(self) -> Optional[str]:
         candidate = str(self.cfg.get("font_family", "Microsoft YaHei UI"))
@@ -106,54 +110,78 @@ class App(ctk.CTk):
                     return
                 except Exception:
                     pass
-        self.geometry("1000x700")
+        self.geometry("1100x720")
+        self.minsize(900, 600)
 
-    def _build_ui(self):
-        top = ctk.CTkFrame(self)
-        top.pack(fill="x", padx=10, pady=5)
+    def _build_ui(self) -> None:
+        c = theme.current().colors
+
+        top = ctk.CTkFrame(self, height=44, fg_color=c.bg_secondary)
+        top.pack(fill="x")
+        top.pack_propagate(False)
 
         self.status_lbl = ctk.CTkLabel(
-            top, text="●记录中", text_color="green", font=("", 14, "bold")
+            top, text="●记录中", text_color=c.success, font=("", 13, "bold")
         )
-        self.status_lbl.pack(side="left", padx=10)
-        self.today_lbl = ctk.CTkLabel(top, text="今日: 0")
-        self.today_lbl.pack(side="left", padx=20)
-        self.total_lbl = ctk.CTkLabel(top, text="总计: 0")
-        self.total_lbl.pack(side="left", padx=20)
+        self.status_lbl.pack(side="left", padx=14)
+        self.today_lbl = ctk.CTkLabel(top, text="今日: 0", text_color=c.fg_primary)
+        self.today_lbl.pack(side="left", padx=14)
+        self.total_lbl = ctk.CTkLabel(top, text="总计: 0", text_color=c.fg_primary)
+        self.total_lbl.pack(side="left", padx=14)
+        self.db_lbl = ctk.CTkLabel(top, text="", text_color=c.fg_muted, font=("", 11))
+        self.db_lbl.pack(side="right", padx=14)
 
-        ctk.CTkButton(top, text="🔄 刷新", command=self.refresh, width=80).pack(
-            side="right", padx=5
-        )
-        self.toggle_btn = ctk.CTkButton(
-            top, text="⏸ 暂停", command=self._toggle, width=80
-        )
-        self.toggle_btn.pack(side="right", padx=5)
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.pack(fill="both", expand=True)
 
-        self.db_lbl = ctk.CTkLabel(top, text="", text_color="gray")
-        self.db_lbl.pack(side="right", padx=10)
+        from ui import Sidebar
 
-        self.tabs = ctk.CTkTabview(self)
-        self.tabs.pack(fill="both", expand=True, padx=10, pady=5)
-        self.tabs.add("总量速率")
-        self.tabs.add("热力图")
-        self.tabs.add("按键排行")
-        self.tabs.add("设置")
+        self._sidebar = Sidebar(body, on_select=self._show_page)
+        self._sidebar.pack(side="left", fill="y")
 
-        self.settings_view = settings_panel.SettingsPanel(
-            self.tabs.tab("设置"),
-            on_save_callback=self._on_settings_changed,
-        )
-        self.settings_view.pack(fill="both", expand=True)
+        sep = ctk.CTkFrame(body, width=1, fg_color=c.border)
+        sep.pack(side="left", fill="y")
 
-        self.fig_rate = Figure(figsize=(9, 5), dpi=80, facecolor="#2b2b2b")
-        self.fig_heat = Figure(figsize=(9, 5), dpi=80, facecolor="#2b2b2b")
-        self.fig_top = Figure(figsize=(9, 5), dpi=80, facecolor="#2b2b2b")
+        self._page_area = ctk.CTkFrame(body, fg_color="transparent")
+        self._page_area.pack(side="left", fill="both", expand=True)
 
-        self.cv_rate = FigureCanvasTkAgg(self.fig_rate, master=self.tabs.tab("总量速率"))
-        self.cv_heat = FigureCanvasTkAgg(self.fig_heat, master=self.tabs.tab("热力图"))
-        self.cv_top = FigureCanvasTkAgg(self.fig_top, master=self.tabs.tab("按键排行"))
-        for cv in (self.cv_rate, self.cv_heat, self.cv_top):
-            cv.get_tk_widget().pack(fill="both", expand=True)
+        self._pages: dict[str, object] = {}
+        self._active_page: Optional[str] = None
+        self._show_page("dashboard")
+
+    def _show_page(self, name: str) -> None:
+        self._sidebar.set_active(name)
+        if self._active_page and self._active_page in self._pages:
+            self._pages[self._active_page].pack_forget()
+        if name not in self._pages:
+            page = self._create_page(name)
+            self._pages[name] = page
+        self._pages[name].pack(fill="both", expand=True)
+        self._pages[name].ensure_built()
+        self._active_page = name
+        try:
+            self._pages[name].refresh()
+        except Exception:
+            pass
+
+    def _create_page(self, name: str):
+        from ui.pages.dashboard import DashboardPage
+        from ui.pages.heatmap import HeatmapPage
+        from ui.pages.rate import RatePage
+        from ui.pages.settings import SettingsPage
+        from ui.pages.top_keys import TopKeysPage
+
+        mapping = {
+            "dashboard": DashboardPage,
+            "rate": RatePage,
+            "heatmap": HeatmapPage,
+            "top_keys": TopKeysPage,
+            "settings": SettingsPage,
+        }
+        cls = mapping.get(name)
+        if cls is None:
+            raise ValueError(f"unknown page: {name}")
+        return cls(self._page_area, self)
 
     def _toggle(self):
         if listener.is_paused():
@@ -162,13 +190,12 @@ class App(ctk.CTk):
             listener.pause()
         self.refresh_status()
 
-    def refresh_status(self):
+    def refresh_status(self) -> None:
+        c = theme.current().colors
         if listener.is_paused():
-            self.status_lbl.configure(text="⏸已暂停", text_color="orange")
-            self.toggle_btn.configure(text="▶ 继续")
+            self.status_lbl.configure(text="⏸ 已暂停", text_color=c.warning)
         else:
-            self.status_lbl.configure(text="●记录中", text_color="green")
-            self.toggle_btn.configure(text="⏸ 暂停")
+            self.status_lbl.configure(text="● 记录中", text_color=c.success)
         self.today_lbl.configure(text=f"今日: {db.count_today():,}")
         self.total_lbl.configure(text=f"总计: {db.count_total():,}")
         h = db.health()
@@ -180,13 +207,15 @@ class App(ctk.CTk):
             last_bk = "无"
         self.db_lbl.configure(text=f"DB: {size_mb:.1f}MB · 备份: {last_bk}")
 
-    def refresh(self):
+    def refresh(self) -> None:
         self.refresh_status()
-        self._draw_rate()
-        self._draw_heat()
-        self._draw_top()
+        for page in self._pages.values():
+            try:
+                page.refresh()
+            except Exception:
+                pass
 
-    def _auto_refresh(self):
+    def _auto_refresh(self) -> None:
         if not listener.is_paused():
             self.refresh()
         self._check_idle()
@@ -228,74 +257,11 @@ class App(ctk.CTk):
                 self.refresh_status()
 
     def on_keypress(self) -> None:
-        """由 listener 或外部机制调用,刷新 last_keypress 戳。"""
         import time as _t
 
         self._last_keypress_mono = _t.monotonic()
 
-    def _draw_rate(self):
-        self.fig_rate.clear()
-        ax = self.fig_rate.add_subplot(111)
-        data = db.rate_series(self.cfg["rate_chart_hours"])
-        if data:
-            xs = [datetime.fromtimestamp(t / 1000) for t, _ in data]
-            ys = [c for _, c in data]
-            ax.plot(xs, ys, color="#4CAF50", linewidth=1)
-            ax.fill_between(xs, ys, alpha=0.3, color="#4CAF50")
-        ax.set_title(
-            f"过去 {self.cfg['rate_chart_hours']}h - 每分钟按键数", color="white"
-        )
-        ax.set_xlabel("时间", color="white")
-        ax.set_ylabel("按键/分钟", color="white")
-        ax.tick_params(colors="white")
-        ax.grid(True, alpha=0.3)
-        self.fig_rate.autofmt_xdate()
-        self.fig_rate.tight_layout()
-        self.cv_rate.draw()
-
-    def _draw_heat(self):
-        self.fig_heat.clear()
-        ax = self.fig_heat.add_subplot(111)
-        grid = db.heatmap_data(self.cfg["heatmap_days"])
-        im = ax.imshow(grid, cmap="YlOrRd", aspect="auto")
-        ax.set_xticks(range(24))
-        ax.set_xticklabels(range(24))
-        ax.set_yticks(range(7))
-        ax.set_yticklabels(["一", "二", "三", "四", "五", "六", "日"])
-        ax.set_title(
-            f"按键活跃度热力图 (过去 {self.cfg['heatmap_days']} 天)", color="white"
-        )
-        ax.set_xlabel("小时", color="white")
-        ax.set_ylabel("星期", color="white")
-        ax.tick_params(colors="white")
-        self.fig_heat.colorbar(im, ax=ax, label="按键数")
-        self.fig_heat.tight_layout()
-        self.cv_heat.draw()
-
-    def _draw_top(self):
-        self.fig_top.clear()
-        ax = self.fig_top.add_subplot(111)
-        data = db.top_keys(20)
-        if data:
-            keys = [k for k, _ in data][::-1]
-            counts = [c for _, c in data][::-1]
-            bars = ax.barh(keys, counts, color="#2196F3")
-            for b, c in zip(bars, counts):
-                ax.text(
-                    b.get_width() + 1,
-                    b.get_y() + b.get_height() / 2,
-                    str(c),
-                    va="center",
-                    color="white",
-                    fontsize=9,
-                )
-        ax.set_title("Top 20 按键排行", color="white")
-        ax.set_xlabel("次数", color="white")
-        ax.tick_params(colors="white")
-        self.fig_top.tight_layout()
-        self.cv_top.draw()
-
-    def _on_close(self):
+    def _on_close(self) -> None:
         self._save_geometry()
         if self.cfg.get("close_to_tray", True):
             self.withdraw()
@@ -314,7 +280,7 @@ class App(ctk.CTk):
         except Exception:
             pass
 
-    def show(self):
+    def show(self) -> None:
         self.deiconify()
         self.lift()
         self.focus_force()
@@ -329,9 +295,9 @@ class App(ctk.CTk):
             )
         except Exception:
             pass
-        theme = str(self.cfg.get("theme", "dark"))
-        if theme != str(old.get("theme", "dark")):
-            self._apply_theme_change(theme)
+        theme_name = str(self.cfg.get("theme", "dark"))
+        if theme_name != str(old.get("theme", "dark")):
+            self._apply_theme_change(theme_name)
         if str(self.cfg.get("font_family", "")) != str(old.get("font_family", "")):
             self._apply_font_change()
         try:
@@ -339,7 +305,7 @@ class App(ctk.CTk):
         except Exception:
             pass
         try:
-            db.set_retention_days(int(self.cfg.get("db_retention_days", 7)))
+            db.set_retention_days(int(self.cfg.get("db_retention_days", 365)))
         except Exception:
             pass
         try:
@@ -367,20 +333,17 @@ class App(ctk.CTk):
             self._last_keypress_mono = _t.monotonic()
         self.refresh()
 
-    def _apply_theme_change(self, theme: str) -> None:
-        ctk.set_appearance_mode(theme)
-        plt.style.use("dark_background" if theme == "dark" else "default")
-        face = "#2b2b2b" if theme == "dark" else "#ffffff"
-        for fig in (self.fig_rate, self.fig_heat, self.fig_top):
-            try:
-                fig.set_facecolor(face)
-            except Exception:
-                pass
+    def _apply_theme_change(self, theme_name: str) -> None:
+        theme.apply_theme(theme_name)
         try:
-            plt.rcParams["font.sans-serif"] = [self._pick_app_font() or CJK_FONT, "DejaVu Sans"]
-            plt.rcParams["axes.unicode_minus"] = False
+            self._sidebar.apply_theme()
         except Exception:
             pass
+        for page in self._pages.values():
+            try:
+                page.apply_theme()
+            except Exception:
+                pass
         self.refresh()
 
     def _apply_font_change(self) -> None:
@@ -395,14 +358,11 @@ class App(ctk.CTk):
                     pass
         except Exception:
             pass
-        try:
-            plt.rcParams["font.sans-serif"] = [font, "DejaVu Sans"]
-            plt.rcParams["axes.unicode_minus"] = False
-        except Exception:
-            pass
+        plt.rcParams["font.sans-serif"] = [font, "DejaVu Sans"]
+        plt.rcParams["axes.unicode_minus"] = False
         self.refresh()
 
-    def quit_app(self):
+    def quit_app(self) -> None:
         try:
             db.close()
         except Exception:
