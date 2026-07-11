@@ -19,13 +19,15 @@ DEFAULTS = {
     "refresh_interval_sec": 5,
     "heatmap_days": 7,
     "rate_chart_hours": 24,
-    "db_retention_days": 7,
+    "db_retention_days": 365,
     "db_auto_backup_days": 7,
     "backup_keep_daily": 7,
     "backup_keep_weekly": 4,
     "db_flush_batch_size": 200,
     "db_flush_interval_sec": 1.0,
     "log_to_file": False,
+    "enable_global_hotkey": False,
+    "global_hotkey": "ctrl+shift+k",
 }
 
 
