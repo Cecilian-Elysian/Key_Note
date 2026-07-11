@@ -17,8 +17,19 @@ class TopKeysPage(BasePage):
     def _build(self) -> None:
         c = theme.current().colors
         self._fig = Figure(figsize=(9, 5), dpi=80, facecolor=c.chart_face)
-        self._canvas = FigureCanvasTkAgg(self._fig, master=self)
-        self._canvas.get_tk_widget().pack(fill="both", expand=True, padx=16, pady=16)
+        self._mpl_canvas = FigureCanvasTkAgg(self._fig, master=self)
+        widget = self._mpl_canvas.get_tk_widget()
+        widget.pack(fill="both", expand=True, padx=16, pady=16)
+
+        def _on_resize(event, fig=self._fig, canvas=self._mpl_canvas):
+            if event.width > 100 and event.height > 100:
+                fig.set_size_inches(
+                    event.width / fig.dpi - 0.4,
+                    event.height / fig.dpi - 0.4,
+                )
+                canvas.draw_idle()
+
+        widget.bind("<Configure>", _on_resize)
 
     def _do_refresh(self) -> None:
         c = theme.current().colors
@@ -46,7 +57,7 @@ class TopKeysPage(BasePage):
         for spine in ax.spines.values():
             spine.set_color(c.border)
         self._fig.tight_layout()
-        self._canvas.draw()
+        self._mpl_canvas.draw()
 
     def _do_apply_theme(self) -> None:
         self._do_refresh()

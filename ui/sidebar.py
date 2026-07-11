@@ -24,6 +24,7 @@ NAV_ITEMS = [
 class Sidebar(ctk.CTkFrame):
     def __init__(self, master, on_select: Callable[[str], None]):
         super().__init__(master, width=180, corner_radius=0)
+        self.pack_propagate(False)
         self._on_select = on_select
         self._buttons: dict[str, ctk.CTkButton] = {}
         self._active: Optional[str] = None

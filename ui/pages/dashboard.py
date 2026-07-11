@@ -55,7 +55,18 @@ class DashboardPage(BasePage):
 
         self._spark_fig = Figure(figsize=(9, 2.4), dpi=80, facecolor=c.chart_face)
         self._spark_canvas = FigureCanvasTkAgg(self._spark_fig, master=spark_frame)
-        self._spark_canvas.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=8)
+        spark_widget = self._spark_canvas.get_tk_widget()
+        spark_widget.pack(fill="both", expand=True, padx=8, pady=8)
+
+        def _on_spark_resize(event, fig=self._spark_fig, canvas=self._spark_canvas):
+            if event.width > 100 and event.height > 100:
+                fig.set_size_inches(
+                    event.width / fig.dpi - 0.2,
+                    event.height / fig.dpi - 0.2,
+                )
+                canvas.draw_idle()
+
+        spark_widget.bind("<Configure>", _on_spark_resize)
 
     def _do_refresh(self) -> None:
         today = db.count_today()

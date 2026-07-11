@@ -136,14 +136,19 @@ class App(ctk.CTk):
 
         from ui import Sidebar
 
+        body.columnconfigure(0, weight=0, minsize=180)
+        body.columnconfigure(1, weight=0, minsize=1)
+        body.columnconfigure(2, weight=1)
+        body.rowconfigure(0, weight=1)
+
         self._sidebar = Sidebar(body, on_select=self._show_page)
-        self._sidebar.pack(side="left", fill="y")
+        self._sidebar.grid(row=0, column=0, sticky="nsw")
 
         sep = ctk.CTkFrame(body, width=1, fg_color=c.border)
-        sep.pack(side="left", fill="y")
+        sep.grid(row=0, column=1, sticky="ns")
 
         self._page_area = ctk.CTkFrame(body, fg_color="transparent")
-        self._page_area.pack(side="left", fill="both", expand=True)
+        self._page_area.grid(row=0, column=2, sticky="nsew")
 
         self._pages: dict[str, object] = {}
         self._active_page: Optional[str] = None
@@ -159,8 +164,12 @@ class App(ctk.CTk):
         self._pages[name].pack(fill="both", expand=True)
         self._pages[name].ensure_built()
         self._active_page = name
+        self.after(100, lambda n=name: self._safe_refresh(n))
+
+    def _safe_refresh(self, name: str) -> None:
         try:
-            self._pages[name].refresh()
+            if name in self._pages:
+                self._pages[name].refresh()
         except Exception:
             pass
 

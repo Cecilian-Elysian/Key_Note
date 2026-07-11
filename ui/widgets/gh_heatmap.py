@@ -15,7 +15,7 @@ import db
 import theme
 
 
-_CN_WEEKDAYS = ["一", "三", "五", "日"]
+_CN_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
 class GhHeatmapWidget(ctk.CTkFrame):
@@ -49,8 +49,19 @@ class GhHeatmapWidget(ctk.CTkFrame):
         body.pack(fill="both", expand=True)
 
         self._fig = Figure(figsize=(11, 3.2), dpi=80, facecolor=c.chart_face)
-        self._canvas = FigureCanvasTkAgg(self._fig, master=body)
-        self._canvas.get_tk_widget().pack(fill="both", expand=True)
+        self._mpl_canvas = FigureCanvasTkAgg(self._fig, master=body)
+        widget = self._mpl_canvas.get_tk_widget()
+        widget.pack(fill="both", expand=True)
+
+        def _on_resize(event, fig=self._fig, canvas=self._mpl_canvas):
+            if event.width > 100 and event.height > 100:
+                fig.set_size_inches(
+                    event.width / fig.dpi - 0.4,
+                    event.height / fig.dpi - 0.4,
+                )
+                canvas.draw_idle()
+
+        widget.bind("<Configure>", _on_resize)
 
         legend = ctk.CTkFrame(self, fg_color="transparent")
         legend.pack(fill="x", pady=(2, 0))
@@ -86,29 +97,23 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self._summary.configure(
             text=f"活跃 {active_days}/{self._days} 天 · 最高 {max_val} · 合计 {total:,}"
         )
-        self._draw(grid, start_dt, end_dt)
+        self._max_value = max(1, max_val)
+        self._render_heatmap(grid, start_dt, end_dt)
 
     def _bucket_color(self, value: int, c) -> str:
         if value <= 0:
             return c.heatmap_empty
-        if max_val := value:
-            pass
-        if value < max_val * 0.25 if False else False:
-            return c.heatmap_l1
         levels = [c.heatmap_l1, c.heatmap_l2, c.heatmap_l3, c.heatmap_l4]
-        if value <= 0:
-            return c.heatmap_empty
-        ratio = min(1.0, value / max(1, self._max_value))
+        ratio = min(1.0, value / self._max_value)
         idx = min(len(levels) - 1, int(ratio * len(levels)))
         return levels[idx]
 
-    def _draw(self, grid, start_dt, end_dt) -> None:
+    def _render_heatmap(self, grid, start_dt, end_dt) -> None:
         c = theme.current().colors
         plt.style.use(theme.current().plt_style)
         self._fig.clear()
         ax = self._fig.add_subplot(111)
 
-        self._max_value = int(grid.max()) if grid.size else 1
         weeks = grid.shape[0]
         face = c.chart_face
 
@@ -139,11 +144,11 @@ class GhHeatmapWidget(ctk.CTkFrame):
             spine.set_visible(False)
         ax.tick_params(left=False, bottom=False)
 
+        from datetime import timedelta
         month_starts = []
         for w in range(weeks):
             day_offset = w * 7
             try:
-                from datetime import timedelta
                 dt = start_dt + timedelta(days=day_offset)
                 if dt.day <= 7 and (not month_starts or dt.month != month_starts[-1][1]):
                     month_starts.append((w, dt.month))
@@ -162,7 +167,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             )
 
         self._fig.tight_layout(pad=0.4)
-        self._canvas.draw()
+        self._mpl_canvas.draw()
 
     def apply_theme(self) -> None:
         self.refresh()
