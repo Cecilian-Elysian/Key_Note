@@ -95,11 +95,28 @@ class App(ctk.CTk):
             if geo:
                 try:
                     self.geometry(geo)
+                    self._clamp_window_size()
                     return
                 except Exception:
                     pass
-        self.geometry("400x500")
-        self.minsize(380, 450)
+        self.geometry("450x500")
+        self.minsize(450, 500)
+        self.maxsize(450, 500)
+
+    def _clamp_window_size(self) -> None:
+        """将窗口尺寸锁定到 450×500，保留原位置。"""
+        try:
+            self.maxsize(450, 500)
+            self.minsize(450, 500)
+            cur = self.geometry()
+            plus_idx = cur.find("+")
+            if plus_idx < 0:
+                self.geometry("450x500")
+                return
+            rest = cur[plus_idx:]
+            self.geometry(f"450x500{rest}")
+        except Exception:
+            pass
 
     def _build_ui(self) -> None:
         c = theme.current().colors

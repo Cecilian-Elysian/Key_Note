@@ -15,10 +15,10 @@ _ROWS = 7
 _FIRST_DOW = 0
 
 _CELL_MIN = 6
-_CELL_MAX = 14
+_CELL_MAX = 16
 _CELL_SPACING = 2
-_WEEKDAY_LABEL_W = 28
-_MONTH_LABEL_H = 14
+_WEEKDAY_LABEL_W = 30
+_MONTH_LABEL_H = 16
 _LEGEND_H = 16
 _MARGIN = 6
 _MONTH_MIN_GAP = 6
@@ -270,7 +270,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
                 ty = sub_oy + row * (cell + spacing) + cell / 2
                 self._canvas.create_text(
                     tx, ty, text=label, anchor="w",
-                    fill=c.fg_muted, font=(_FONT_FAMILY, 9),
+                    fill=c.fg_muted, font=(_FONT_FAMILY, 10),
                 )
 
             self._draw_month_labels(
@@ -308,7 +308,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
                 if label_x - last_label_max_x >= _MONTH_MIN_GAP:
                     rid = self._canvas.create_text(
                         label_x, text_y, text=label, anchor="sw",
-                        fill=c.fg_muted, font=(_FONT_FAMILY, 9),
+                        fill=c.fg_muted, font=(_FONT_FAMILY, 10),
                     )
                     bbox = self._canvas.bbox(rid)
                     if bbox:
@@ -322,15 +322,15 @@ class GhHeatmapWidget(ctk.CTkFrame):
         box_size = max(8, min(int(cell), 10))
         box_spacing = 3
 
-        less_w = 9
-        more_w = 9
+        less_w = 11
+        more_w = 11
         legend_w = less_w + 8 + 5 * box_size + 4 * box_spacing + 8 + more_w
         right_edge = grid_x + grid_w
         x = right_edge - legend_w
 
         self._canvas.create_text(
             x, y + box_size / 2, text=less_text, anchor="w",
-            fill=c.fg_muted, font=(_FONT_FAMILY, 9),
+            fill=c.fg_muted, font=(_FONT_FAMILY, 10),
         )
         x += less_w + 8
 
@@ -345,7 +345,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         x += 8 - box_spacing
         self._canvas.create_text(
             x, y + box_size / 2, text=more_text, anchor="w",
-            fill=c.fg_muted, font=(_FONT_FAMILY, 9),
+            fill=c.fg_muted, font=(_FONT_FAMILY, 10),
         )
 
     def _on_resize(self, _event) -> None:
@@ -490,12 +490,12 @@ class _HeatmapTooltip:
         self._frame.pack()
         self._date_lbl = tk.Label(
             self._frame, text="", bg=c.bg_tertiary, fg=c.fg_primary,
-            font=(_FONT_FAMILY, 9, "bold"),
+            font=(_FONT_FAMILY, 10, "bold"),
         )
         self._date_lbl.pack(padx=8, pady=(4, 0))
         self._count_lbl = tk.Label(
             self._frame, text="", bg=c.bg_tertiary, fg=c.fg_secondary,
-            font=(_FONT_FAMILY, 9),
+            font=(_FONT_FAMILY, 10),
         )
         self._count_lbl.pack(padx=8, pady=(0, 4))
 

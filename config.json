@@ -8,7 +8,7 @@
   "font_family": "Microsoft YaHei UI",
   "window_alpha": 1.0,
   "remember_window_pos": true,
-  "_window_geometry": "1100x720+190+190",
+  "_window_geometry": "450x500+200+200",
   "chart_auto_refresh": true,
   "refresh_interval_sec": 5,
   "heatmap_days": 7,

@@ -23,7 +23,7 @@ class HeatmapPage(BasePage):
         title = ctk.CTkLabel(
             header,
             text="年度热力图",
-            font=("", 14, "bold"),
+            font=("", 12, "bold"),
             text_color=c.fg_primary,
             anchor="w",
         )
@@ -32,9 +32,9 @@ class HeatmapPage(BasePage):
         self._settings_btn = ctk.CTkButton(
             header,
             text="⚙ 设置",
-            width=80,
-            height=26,
-            font=("", 11),
+            width=70,
+            height=24,
+            font=("", 10),
             fg_color=c.bg_secondary,
             hover_color=c.bg_tertiary,
             text_color=c.fg_primary,
@@ -58,7 +58,7 @@ class HeatmapPage(BasePage):
             card = ctk.CTkFrame(cards, fg_color=c.bg_secondary)
             card.grid(row=0, column=idx, padx=4, pady=4, sticky="nsew")
             title_lbl = ctk.CTkLabel(
-                card, text=title, font=("", 9), text_color=c.fg_muted
+                card, text=title, font=("", 10), text_color=c.fg_muted
             )
             title_lbl.pack(anchor="w", padx=10, pady=(8, 0))
             value_lbl = ctk.CTkLabel(
