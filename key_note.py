@@ -12,11 +12,26 @@ import window
 def main() -> int:
     cfg = config.load()
     db.init(cfg)
-    threading.Thread(target=listener.start, daemon=True).start()
 
     app = window.App()
+
+    if cfg.get("start_minimized", False):
+        app.withdraw()
+
+    if cfg.get("listener_enabled", True):
+        threading.Thread(target=listener.start, daemon=True).start()
+
     tray_icon = tray.start(app)
     app._tray_icon = tray_icon
+
+    if cfg.get("start_minimized", False):
+        if cfg.get("auto_start", False):
+            pass
+        else:
+            try:
+                tray_icon.notify("KeyNote 已启动,窗口已最小化到托盘")
+            except Exception:
+                pass
 
     try:
         app.mainloop()

@@ -66,24 +66,23 @@ def start(window: "App") -> Icon:
         if icon_ref["icon"]:
             icon_ref["icon"].update_menu()
 
-    def _toggle_close_to_tray(_icon=None, _item=None):
-        c = config.load()
-        c["close_to_tray"] = not c.get("close_to_tray", True)
-        config.save(c)
-        if icon_ref["icon"]:
-            icon_ref["icon"].update_menu()
-
-    def _toggle_autostart(_icon=None, _item=None):
-        c = config.load()
-        c["auto_start"] = not c.get("auto_start", False)
-        config.save(c)
-        _set_autostart(c["auto_start"])
-        if icon_ref["icon"]:
-            icon_ref["icon"].update_menu()
-
     def _show_window(_icon, _item):
         try:
             window.after(0, window.show)
+        except Exception:
+            pass
+
+    def _open_settings(_icon, _item):
+        try:
+            window.after(
+                0,
+                lambda: (
+                    window.deiconify(),
+                    window.lift(),
+                    window.focus_force(),
+                    window.tabs.set("设置"),
+                ),
+            )
         except Exception:
             pass
 
@@ -137,6 +136,12 @@ def start(window: "App") -> Icon:
             if icon_ref["icon"]:
                 icon_ref["icon"].update_menu()
 
+        def _make_retention_handler(days: int):
+            def _h(_icon, _item):
+                _set_retention(days)
+
+            return _h
+
         data_submenu = Menu(
             MenuItem(
                 lambda text: f"总按键: {db.count_total():,}",
@@ -168,7 +173,7 @@ def start(window: "App") -> Icon:
                     *[
                         MenuItem(
                             lambda text, d=d: _retention_label(d),
-                            lambda _i, _it, d=d: _set_retention(d),
+                            _make_retention_handler(d),
                         )
                         for _, d in _RETENTION_OPTIONS
                     ],
@@ -182,17 +187,7 @@ def start(window: "App") -> Icon:
                 lambda text: "▶ 继续" if listener.is_paused() else "⏸ 暂停",
                 _toggle_pause,
             ),
-            Menu.SEPARATOR,
-            MenuItem(
-                lambda text: ("✓" if c.get("close_to_tray") else " ")
-                + " 关闭窗口到托盘",
-                _toggle_close_to_tray,
-            ),
-            MenuItem(
-                lambda text: ("✓" if c.get("auto_start") else " ")
-                + " 开机自启",
-                _toggle_autostart,
-            ),
+            MenuItem("⚙ 设置...", _open_settings),
             Menu.SEPARATOR,
             MenuItem("📊 数据管理", data_submenu),
             Menu.SEPARATOR,

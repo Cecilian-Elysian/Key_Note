@@ -16,24 +16,26 @@
   - raw 表 (`keypresses`) 默认 7 天后自动清理,可调
   - 自动 7 天一次备份到 `backups/`,保留 7 份日备 + 4 份周备
   - 手动备份 / VACUUM / 保留天数均可通过托盘菜单调整
-- **系统托盘**: 显示窗口 / 暂停 / 数据管理 / 退出 / 切换设置
-- **设置** (托盘菜单内):
-  - 关闭窗口 → 隐藏到托盘 (默认开)
-  - 开机自启 (默认关)
+- **系统托盘**: 显示窗口 / 暂停 / 数据管理 / 退出 / 设置
+- **设置面板** (主窗口内嵌 Tab,也可从托盘菜单 "⚙ 设置..." 进入):
+  - 21 项配置,按"常规 / 界面 / 刷新与图表 / 数据库与备份 / 数据导出·日志"分组
+  - 含启动最小化、闲置自动暂停、主题、字体、窗口透明度、记住窗口位置、CSV 导出、日志写入等
 
 ## 项目结构
 
 ```
 key_note/
-├── key_note.py         # 入口
+├── key_note.py         # 入口 (按 start_minimized / listener_enabled 分支)
 ├── config.py           # 配置持久化
-├── db.py               # SQLite 异步写入 + 聚合表 + 备份 + 保留
+├── db.py               # SQLite 异步写入 + 聚合表 + 备份 + 保留 + CSV 导出 + 日志
 ├── listener.py         # pynput 键盘监听
-├── tray.py             # pystray 系统托盘 (含数据管理子菜单)
-├── window.py           # customtkinter 主窗口 + 图表
+├── tray.py             # pystray 系统托盘 (含数据管理子菜单 + 设置入口)
+├── window.py           # customtkinter 主窗口 + 图表 + 设置回调
+├── settings_panel.py   # 设置面板 (主窗口第 4 个 Tab)
 ├── keynote.db          # 数据 (运行后自动创建)
 ├── keynote.db-wal      # WAL 日志 (运行中)
 ├── keynote.db-shm      # 共享内存 (运行中)
+├── keynote.log         # 日志 (启用 log_to_file 后创建)
 ├── config.json         # 用户配置 (运行后自动创建)
 ├── backups/            # 自动备份目录 (运行后自动创建)
 └── .gitignore
@@ -75,15 +77,29 @@ pyinstaller --noconfirm --windowed --onefile --name KeyNote key_note.py
 {
   "auto_start": false,
   "close_to_tray": true,
+  "start_minimized": false,
+  "listener_enabled": true,
+  "idle_pause_min": 0,
+  "theme": "dark",
+  "font_family": "Microsoft YaHei UI",
+  "window_alpha": 1.0,
+  "remember_window_pos": true,
+  "_window_geometry": "",
+  "chart_auto_refresh": true,
   "refresh_interval_sec": 5,
   "heatmap_days": 7,
   "rate_chart_hours": 24,
+  "db_retention_days": 7,
+  "db_auto_backup_days": 7,
+  "backup_keep_daily": 7,
+  "backup_keep_weekly": 4,
   "db_flush_batch_size": 200,
   "db_flush_interval_sec": 1.0,
-  "db_retention_days": 7,
-  "db_auto_backup_days": 7
+  "log_to_file": false
 }
 ```
+
+完整配置可在主窗口 **设置** 选项卡里改,也可直接编辑 `config.json`。大部分配置保存即生效,下列项 **重启后** 生效: `log_to_file`、`start_minimized`、`listener_enabled`、`theme`、`font_family` 中的字体候选不存在时的回退路径。
 
 ## 数据库 Schema
 
