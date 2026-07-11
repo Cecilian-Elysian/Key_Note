@@ -4,6 +4,13 @@ from pynput import keyboard
 import db
 
 RECORDING = True
+_activity_callbacks: list = []
+
+
+def register_activity_callback(fn) -> None:
+    """注册按键活动回调。用于窗口/设置面板追踪闲置时间。"""
+    if fn not in _activity_callbacks:
+        _activity_callbacks.append(fn)
 
 
 def _on_press(key) -> None:
@@ -15,6 +22,11 @@ def _on_press(key) -> None:
         else:
             name = str(key).replace("Key.", "")
         db.enqueue(name)
+        for fn in _activity_callbacks:
+            try:
+                fn()
+            except Exception:
+                pass
     except Exception:
         pass
 

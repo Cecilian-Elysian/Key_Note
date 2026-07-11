@@ -1,6 +1,8 @@
 """SQLite 异步写入 + 聚合表 + 备份 + 保留策略 + 查询"""
 from __future__ import annotations
 
+import csv
+import logging
 import queue
 import sqlite3
 import threading
@@ -11,8 +13,13 @@ from typing import Optional
 
 import numpy as np
 
+import config
+
 DB_PATH = Path(__file__).parent / "keynote.db"
 BACKUP_DIR = Path(__file__).parent / "backups"
+LOG_PATH = Path(__file__).parent / "keynote.log"
+
+LOGGER = logging.getLogger("keynote")
 
 _conn: Optional[sqlite3.Connection] = None
 _writer_thread: Optional[threading.Thread] = None
@@ -51,6 +58,8 @@ def init(cfg: Optional[dict] = None) -> sqlite3.Connection:
     interval = float(cfg.get("db_flush_interval_sec", 1.0))
     _retention_days = int(cfg.get("db_retention_days", 7))
     auto_backup_days = int(cfg.get("db_auto_backup_days", 7))
+
+    _setup_logger(bool(cfg.get("log_to_file", False)))
 
     _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     _conn.execute("PRAGMA journal_mode=WAL")
@@ -94,7 +103,10 @@ def _run_migrations() -> None:
 
 
 def _table_cols(name: str) -> set:
-    return {r[1] for r in _conn.execute(f"PRAGMA table_info({name})").fetchall()}
+    try:
+        return {r[1] for r in _conn.execute(f"PRAGMA table_info({name})").fetchall()}
+    except sqlite3.Error:
+        return set()
 
 
 def _migrate_to_v1() -> None:
@@ -103,6 +115,13 @@ def _migrate_to_v1() -> None:
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "started_at INTEGER NOT NULL, "
         "ended_at INTEGER"
+        ")"
+    )
+    _conn.execute(
+        "CREATE TABLE IF NOT EXISTS keypresses ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts INTEGER NOT NULL, "
+        "key TEXT NOT NULL"
         ")"
     )
     cols = _table_cols("keypresses")
@@ -284,6 +303,51 @@ def set_retention_days(days: int) -> None:
     _retention_days = max(0, int(days))
 
 
+def _setup_logger(to_file: bool) -> None:
+    """根据配置启用/关闭文件日志(运行时切换)。"""
+    for h in list(LOGGER.handlers):
+        LOGGER.removeHandler(h)
+    LOGGER.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    LOGGER.addHandler(sh)
+    if to_file:
+        try:
+            fh = logging.FileHandler(LOG_PATH, encoding="utf-8")
+            fh.setFormatter(fmt)
+            LOGGER.addHandler(fh)
+        except Exception as e:
+            print(f"log file init failed: {e}")
+
+
+def apply_log_to_file(enabled: bool) -> None:
+    """运行时切换日志。调用 _setup_logger 重建 handler 列表。"""
+    _setup_logger(bool(enabled))
+
+
+def export_csv(path: str, days: int = 30) -> int:
+    """导出过去 N 天的原始按键记录到 CSV,返回导出行数。"""
+    if _conn is None:
+        return 0
+    cutoff_ms = int(time.time() * 1000) - max(1, days) * 86400000
+    rows = _conn.execute(
+        "SELECT ts, key, session_id FROM keypresses WHERE ts >= ? ORDER BY ts",
+        (cutoff_ms,),
+    ).fetchall()
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["ts_iso", "key", "session_id"])
+        for ts, key, sid in rows:
+            iso = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d %H:%M:%S")
+            w.writerow([iso, key, sid])
+    try:
+        LOGGER.info("exported %d rows to %s", len(rows), path)
+    except Exception:
+        pass
+    return len(rows)
+
+
 def close():
     """排空队列 + 关闭 session + checkpoint + 关闭连接"""
     global _conn, _writer_thread, _write_queue, _session_id
@@ -366,7 +430,10 @@ def backup(manual: bool = False) -> Optional[Path]:
             _conn.backup(bck)
         finally:
             bck.close()
-        _prune_old_backups()
+        cfg = config.load()
+        keep_daily = int(cfg.get("backup_keep_daily", 7))
+        keep_weekly = int(cfg.get("backup_keep_weekly", 4))
+        _prune_old_backups(keep_daily, keep_weekly)
         return dest
     except Exception as e:
         print(f"Backup error: {e}")
@@ -388,7 +455,7 @@ def _auto_backup_if_needed(interval_days: int) -> None:
         backup(manual=False)
 
 
-def _prune_old_backups() -> None:
+def _prune_old_backups(keep_daily: int = 7, keep_weekly: int = 4) -> None:
     if not BACKUP_DIR.exists():
         return
     files = sorted(
@@ -397,7 +464,7 @@ def _prune_old_backups() -> None:
         reverse=True,
     )
     keep = set()
-    for f in files[:7]:
+    for f in files[: max(0, keep_daily)]:
         keep.add(f)
     weekly = []
     last_week = -1
@@ -406,7 +473,7 @@ def _prune_old_backups() -> None:
         if week != last_week:
             weekly.append(f)
             last_week = week
-        if len(weekly) >= 4:
+        if len(weekly) >= max(0, keep_weekly):
             break
     keep.update(weekly)
     for f in files:
