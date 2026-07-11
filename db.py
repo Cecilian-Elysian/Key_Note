@@ -45,6 +45,10 @@ _AGG_DOW_HOUR_SQL = (
     "INSERT INTO agg_dow_hour(dow, hour, count) VALUES (?, ?, ?) "
     "ON CONFLICT(dow, hour) DO UPDATE SET count = count + excluded.count"
 )
+_AGG_DAY_SQL = (
+    "INSERT INTO agg_day(day_ts, count) VALUES (?, ?) "
+    "ON CONFLICT(day_ts) DO UPDATE SET count = count + excluded.count"
+)
 
 _LAST_CLEANUP_MONO = 0.0
 _CLEANUP_INTERVAL_SEC = 24 * 3600
@@ -99,6 +103,8 @@ def _run_migrations() -> None:
         _migrate_to_v1()
     if current < 2:
         _migrate_to_v2()
+    if current < 3:
+        _migrate_to_v3()
     _conn.commit()
 
 
@@ -170,6 +176,19 @@ def _migrate_to_v2() -> None:
     )
     _conn.execute(
         "INSERT INTO schema_version(version, applied_at) VALUES (2, ?)",
+        (int(time.time() * 1000),),
+    )
+
+
+def _migrate_to_v3() -> None:
+    _conn.execute(
+        "CREATE TABLE IF NOT EXISTS agg_day ("
+        "day_ts INTEGER PRIMARY KEY, "
+        "count INTEGER NOT NULL DEFAULT 0"
+        ")"
+    )
+    _conn.execute(
+        "INSERT INTO schema_version(version, applied_at) VALUES (3, ?)",
         (int(time.time() * 1000),),
     )
 
@@ -268,6 +287,13 @@ def _flush_batch(batch: list) -> None:
             [(d, h, c) for (d, h), c in dow_hour_buckets.items()],
         )
         _conn.executemany(_AGG_KEY_SQL, list(key_buckets.items()))
+        day_buckets: dict = {}
+        for ts_sec, _ in batch:
+            ts_ms = int(ts_sec * 1000)
+            day_ts = (ts_ms // 86400000) * 86400000
+            day_buckets[day_ts] = day_buckets.get(day_ts, 0) + 1
+        if day_buckets:
+            _conn.executemany(_AGG_DAY_SQL, list(day_buckets.items()))
         _conn.execute("COMMIT")
     except sqlite3.Error as e:
         print(f"DB write error: {e}")
@@ -415,6 +441,64 @@ def heatmap_data(days: int = 7) -> np.ndarray:
         dt = datetime.fromtimestamp(minute_ts / 1000)
         grid[dt.weekday(), dt.hour] += count
     return grid
+
+
+def heatmap_yearly(days: int = 365) -> tuple[np.ndarray, datetime, datetime]:
+    """返回 GitHub 风格年度热力图数据: (grid[weeks, 7], start_date, end_date)。
+
+    grid[i, j] 表示第 i 周、第 j 天的按键总数。
+    """
+    if _conn is None:
+        grid = np.zeros((53, 7), dtype=int)
+        end = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return grid, end, end
+    end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
+    since_ms = int(start_dt.timestamp() * 1000)
+    grid = np.zeros((53, 7), dtype=int)
+    for day_ts, count in _conn.execute(
+        "SELECT day_ts, count FROM agg_day WHERE day_ts >= ?",
+        (since_ms,),
+    ):
+        dt = datetime.fromtimestamp(day_ts / 1000)
+        delta_days = (dt - start_dt).days
+        if delta_days < 0 or delta_days >= days:
+            continue
+        week_idx = delta_days // 7
+        dow_idx = dt.weekday()
+        if 0 <= week_idx < 53:
+            grid[week_idx, dow_idx] += count
+    return grid, start_dt, end_dt
+
+
+def daily_counts(days: int = 30) -> list[tuple[int, int]]:
+    """返回过去 N 天每日 (day_ts_ms, count),按时间升序。"""
+    if _conn is None:
+        return []
+    end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
+    since_ms = int(start_dt.timestamp() * 1000)
+    rows = _conn.execute(
+        "SELECT day_ts, count FROM agg_day WHERE day_ts >= ? ORDER BY day_ts",
+        (since_ms,),
+    ).fetchall()
+    return rows
+
+
+def streak_days(days: int = 365) -> int:
+    """返回连续按键天数(每日按键数 > 0 算活跃)。"""
+    rows = daily_counts(days)
+    if not rows:
+        return 0
+    counts_by_day = {day_ts // 86400000: c for day_ts, c in rows}
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_key = int(today.timestamp() // 86400)
+    streak = 0
+    cursor = today_key
+    while counts_by_day.get(cursor, 0) > 0:
+        streak += 1
+        cursor -= 1
+    return streak
 
 
 def backup(manual: bool = False) -> Optional[Path]:
