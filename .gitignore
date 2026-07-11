@@ -1,0 +1,50 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Build artifacts
+build/
+dist/
+*.spec
+*.exe
+
+# Database
+keynote.db
+# Auto-generated SQLite WAL/SHM companions
+keynote.db-wal
+keynote.db-shm
+# Database backups
+backups/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Python
+.venv/
+venv/
+.env
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Linter / type checker caches
+.mypy_cache/
+.ruff_cache/
+
+# Editor temp files
+*.swp
+*.swo
+*~
