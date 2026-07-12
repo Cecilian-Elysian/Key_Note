@@ -1,9 +1,13 @@
-"""SQLite 异步写入 + 聚合表 + 备份 + 保留策略 + 查询"""
+"""SQLite 数据持久化层:异步批量写入按键记录、聚合表更新(分钟/小时/天/周)、数据库迁移(v1~v4)、自动备份与保留策略清理、CSV 导出、健康状态检查"""
 from __future__ import annotations
+
+# ──── 数据目录与迁移 ────
 
 import csv
 import logging
+import os
 import queue
+import shutil
 import sqlite3
 import threading
 import time
@@ -15,9 +19,59 @@ import numpy as np
 
 import config
 
-DB_PATH = Path(__file__).parent / "keynote.db"
-BACKUP_DIR = Path(__file__).parent / "backups"
-LOG_PATH = Path(__file__).parent / "keynote.log"
+
+def _get_data_dir(cfg: dict) -> Path:
+    """根据配置返回数据目录。空字符串=exe 同目录,非空=自定义路径。"""
+    custom = cfg.get("data_dir", "")
+    return Path(custom) if custom else config.exe_dir()
+
+
+def _migrate_from_appdata(target_dir: Path) -> None:
+    """把 %APPDATA%/KeyNote/ 下的旧数据(来自上一版 AppData 方案)搬回 target_dir。"""
+    appdata_dir = Path(os.environ.get("APPDATA", "")) / "KeyNote"
+    if not appdata_dir.exists() or target_dir == appdata_dir:
+        return
+    for fname in ("keynote.db", "keynote.db-wal", "keynote.db-shm"):
+        src = appdata_dir / fname
+        dst = target_dir / fname
+        if src.exists() and not dst.exists():
+            try:
+                shutil.move(str(src), str(dst))
+            except Exception:
+                try:
+                    shutil.copy2(str(src), str(dst))
+                    src.unlink()
+                except Exception:
+                    pass
+    for name, is_dir in [("config.json", False), ("backups", True), ("keynote.log", False)]:
+        src = appdata_dir / name
+        dst = target_dir / name
+        if not src.exists() or dst.exists():
+            continue
+        try:
+            shutil.move(str(src), str(dst))
+        except Exception:
+            try:
+                if is_dir:
+                    shutil.copytree(str(src), str(dst))
+                    shutil.rmtree(str(src), ignore_errors=True)
+                else:
+                    shutil.copy2(str(src), str(dst))
+                    src.unlink()
+            except Exception:
+                pass
+    try:
+        remaining = list(appdata_dir.iterdir())
+        if not remaining:
+            appdata_dir.rmdir()
+    except Exception:
+        pass
+
+
+# 初始占位,init() 时会根据 cfg["data_dir"] 重新赋值
+DB_PATH = config.exe_dir() / "keynote.db"
+BACKUP_DIR = config.exe_dir() / "backups"
+LOG_PATH = config.exe_dir() / "keynote.log"
 
 LOGGER = logging.getLogger("keynote")
 
@@ -54,10 +108,38 @@ _LAST_CLEANUP_MONO = 0.0
 _CLEANUP_INTERVAL_SEC = 24 * 3600
 
 
+def _local_midnight_ms(ts_sec: float) -> int:
+    """返回本地当天 00:00 对应的 Unix 毫秒时间戳。"""
+    dt = datetime.fromtimestamp(ts_sec)
+    local_midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(local_midnight.timestamp() * 1000)
+
+
+def _local_hour_ms(ts_sec: float) -> int:
+    """返回本地整点对应的 Unix 毫秒时间戳。"""
+    dt = datetime.fromtimestamp(ts_sec)
+    local_hour = dt.replace(minute=0, second=0, microsecond=0)
+    return int(local_hour.timestamp() * 1000)
+
+
+def _local_minute_ms(ts_sec: float) -> int:
+    """返回本地整分对应的 Unix 毫秒时间戳。"""
+    dt = datetime.fromtimestamp(ts_sec)
+    local_minute = dt.replace(second=0, microsecond=0)
+    return int(local_minute.timestamp() * 1000)
+
+
+# ──── 数据库初始化 ────
 def init(cfg: Optional[dict] = None) -> sqlite3.Connection:
     """初始化 DB: PRAGMA + 迁移 + writer 线程 + 新 session + 自动备份"""
-    global _conn, _writer_thread, _write_queue, _retention_days
+    global _conn, _writer_thread, _write_queue, _retention_days, DB_PATH, BACKUP_DIR, LOG_PATH
     cfg = cfg or {}
+    data_dir = _get_data_dir(cfg)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    DB_PATH = data_dir / "keynote.db"
+    BACKUP_DIR = data_dir / "backups"
+    LOG_PATH = data_dir / "keynote.log"
+    _migrate_from_appdata(data_dir)
     batch_size = int(cfg.get("db_flush_batch_size", 200))
     interval = float(cfg.get("db_flush_interval_sec", 1.0))
     _retention_days = int(cfg.get("db_retention_days", 7))
@@ -92,6 +174,7 @@ def init(cfg: Optional[dict] = None) -> sqlite3.Connection:
     return _conn
 
 
+# ──── 迁移版本 ────
 def _run_migrations() -> None:
     _conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_version "
@@ -105,6 +188,8 @@ def _run_migrations() -> None:
         _migrate_to_v2()
     if current < 3:
         _migrate_to_v3()
+    if current < 4:
+        _migrate_to_v4()
     _conn.commit()
 
 
@@ -193,6 +278,56 @@ def _migrate_to_v3() -> None:
     )
 
 
+def _migrate_to_v4() -> None:
+    """把 agg_day / agg_hour / agg_minute 中所有时间戳从 UTC 基准回填为本地基准。
+
+    旧数据生成时按 (ts_ms // 86400000) * 86400000 等 UTC 整除方式分桶;
+    新数据按本地整点/整分/整日分桶。本迁移读取旧值 → 反算 dt_local → 重写为本地整点 Unix ms。
+    agg_dow_hour 不含时间戳,无需迁移。
+
+    使用 with _conn: 上下文管理器自动处理事务:
+      - 若已有隐式事务 → 复用并在退出时 COMMIT
+      - 若无事务 → 自动 BEGIN, 退出时 COMMIT
+      - 异常 → 自动 ROLLBACK
+    """
+    with _conn:
+        rows = _conn.execute("SELECT day_ts, count FROM agg_day").fetchall()
+        new_buckets: dict = {}
+        for day_ts, count in rows:
+            dt_local = datetime.fromtimestamp(day_ts / 1000)
+            new_ts = _local_midnight_ms(dt_local.timestamp())
+            new_buckets[new_ts] = new_buckets.get(new_ts, 0) + count
+        _conn.execute("DELETE FROM agg_day")
+        if new_buckets:
+            _conn.executemany(_AGG_DAY_SQL, list(new_buckets.items()))
+
+        rows = _conn.execute("SELECT hour_ts, count FROM agg_hour").fetchall()
+        new_buckets = {}
+        for hour_ts, count in rows:
+            dt_local = datetime.fromtimestamp(hour_ts / 1000)
+            new_ts = _local_hour_ms(dt_local.timestamp())
+            new_buckets[new_ts] = new_buckets.get(new_ts, 0) + count
+        _conn.execute("DELETE FROM agg_hour")
+        if new_buckets:
+            _conn.executemany(_AGG_HOUR_SQL, list(new_buckets.items()))
+
+        rows = _conn.execute("SELECT minute_ts, count FROM agg_minute").fetchall()
+        new_buckets = {}
+        for minute_ts, count in rows:
+            dt_local = datetime.fromtimestamp(minute_ts / 1000)
+            new_ts = _local_minute_ms(dt_local.timestamp())
+            new_buckets[new_ts] = new_buckets.get(new_ts, 0) + count
+        _conn.execute("DELETE FROM agg_minute")
+        if new_buckets:
+            _conn.executemany(_AGG_MINUTE_SQL, list(new_buckets.items()))
+
+        _conn.execute(
+            "INSERT INTO schema_version(version, applied_at) VALUES (4, ?)",
+            (int(time.time() * 1000),),
+        )
+
+
+# ──── 会话管理 ────
 def _start_session() -> None:
     global _session_id
     ts = int(time.time() * 1000)
@@ -213,6 +348,7 @@ def _end_session() -> None:
     _session_id = None
 
 
+# ──── 写入队列 ────
 def enqueue(key: str) -> None:
     """非阻塞入队,由 listener 在按键线程调用"""
     if _write_queue is None or _shutdown_event.is_set():
@@ -223,6 +359,7 @@ def enqueue(key: str) -> None:
         pass
 
 
+# ──── 批量写入与聚合 ────
 def _writer_loop(batch_size: int, interval: float) -> None:
     global _LAST_CLEANUP_MONO
     _LAST_CLEANUP_MONO = time.monotonic()
@@ -266,41 +403,37 @@ def _flush_batch(batch: list) -> None:
         hour_buckets: dict = {}
         dow_hour_buckets: dict = {}
         key_buckets: dict = {}
+        day_buckets: dict = {}
         for ts_sec, key in batch:
             ts_ms = int(ts_sec * 1000)
             rows.append((ts_ms, key, _session_id))
-            minute_ts = (ts_ms // 60000) * 60000
-            hour_ts = (ts_ms // 3600000) * 3600000
-            minute_buckets[minute_ts] = minute_buckets.get(minute_ts, 0) + 1
-            hour_buckets[hour_ts] = hour_buckets.get(hour_ts, 0) + 1
+            minute_buckets[_local_minute_ms(ts_sec)] = (
+                minute_buckets.get(_local_minute_ms(ts_sec), 0) + 1
+            )
+            hour_buckets[_local_hour_ms(ts_sec)] = (
+                hour_buckets.get(_local_hour_ms(ts_sec), 0) + 1
+            )
             dt = datetime.fromtimestamp(ts_sec)
             dh = (dt.weekday(), dt.hour)
             dow_hour_buckets[dh] = dow_hour_buckets.get(dh, 0) + 1
             key_buckets[key] = key_buckets.get(key, 0) + 1
+            day_buckets[_local_midnight_ms(ts_sec)] = (
+                day_buckets.get(_local_midnight_ms(ts_sec), 0) + 1
+            )
 
-        _conn.execute("BEGIN")
-        _conn.executemany(_INSERT_SQL, rows)
-        _conn.executemany(_AGG_MINUTE_SQL, list(minute_buckets.items()))
-        _conn.executemany(_AGG_HOUR_SQL, list(hour_buckets.items()))
-        _conn.executemany(
-            _AGG_DOW_HOUR_SQL,
-            [(d, h, c) for (d, h), c in dow_hour_buckets.items()],
-        )
-        _conn.executemany(_AGG_KEY_SQL, list(key_buckets.items()))
-        day_buckets: dict = {}
-        for ts_sec, _ in batch:
-            ts_ms = int(ts_sec * 1000)
-            day_ts = (ts_ms // 86400000) * 86400000
-            day_buckets[day_ts] = day_buckets.get(day_ts, 0) + 1
-        if day_buckets:
-            _conn.executemany(_AGG_DAY_SQL, list(day_buckets.items()))
-        _conn.execute("COMMIT")
+        with _conn:
+            _conn.executemany(_INSERT_SQL, rows)
+            _conn.executemany(_AGG_MINUTE_SQL, list(minute_buckets.items()))
+            _conn.executemany(_AGG_HOUR_SQL, list(hour_buckets.items()))
+            _conn.executemany(
+                _AGG_DOW_HOUR_SQL,
+                [(d, h, c) for (d, h), c in dow_hour_buckets.items()],
+            )
+            _conn.executemany(_AGG_KEY_SQL, list(key_buckets.items()))
+            if day_buckets:
+                _conn.executemany(_AGG_DAY_SQL, list(day_buckets.items()))
     except sqlite3.Error as e:
         print(f"DB write error: {e}")
-        try:
-            _conn.execute("ROLLBACK")
-        except Exception:
-            pass
 
 
 def _maybe_cleanup() -> None:
@@ -323,12 +456,14 @@ def _maybe_cleanup() -> None:
         print(f"DB cleanup error: {e}")
 
 
+# ──── 清理与保留 ────
 def set_retention_days(days: int) -> None:
     """运行时更新保留天数,0 = 永久"""
     global _retention_days
     _retention_days = max(0, int(days))
 
 
+# ──── 日志 ────
 def _setup_logger(to_file: bool) -> None:
     """根据配置启用/关闭文件日志(运行时切换)。"""
     for h in list(LOGGER.handlers):
@@ -352,6 +487,7 @@ def apply_log_to_file(enabled: bool) -> None:
     _setup_logger(bool(enabled))
 
 
+# ──── 查询接口 ────
 def export_csv(path: str, days: int = 30) -> int:
     """导出过去 N 天的原始按键记录到 CSV,返回导出行数。"""
     if _conn is None:
@@ -460,7 +596,9 @@ def heatmap_yearly(days: int = 365) -> tuple[np.ndarray, datetime, datetime]:
         "SELECT day_ts, count FROM agg_day WHERE day_ts >= ?",
         (since_ms,),
     ):
-        dt = datetime.fromtimestamp(day_ts / 1000)
+        dt = datetime.fromtimestamp(day_ts / 1000).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         delta_days = (dt - start_dt).days
         if delta_days < 0 or delta_days >= days:
             continue
@@ -490,14 +628,18 @@ def streak_days(days: int = 365) -> int:
     rows = daily_counts(days)
     if not rows:
         return 0
-    counts_by_day = {day_ts // 86400000: c for day_ts, c in rows}
+    counts_by_day: dict = {}
+    for day_ts, c in rows:
+        dt = datetime.fromtimestamp(day_ts / 1000).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        counts_by_day[dt.date()] = counts_by_day.get(dt.date(), 0) + c
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_key = int(today.timestamp() // 86400)
     streak = 0
-    cursor = today_key
-    while counts_by_day.get(cursor, 0) > 0:
+    cursor = today
+    while counts_by_day.get(cursor.date(), 0) > 0:
         streak += 1
-        cursor -= 1
+        cursor -= __import__("datetime").timedelta(days=1)
     return streak
 
 
@@ -506,17 +648,23 @@ def daily_average(days: int = 7) -> int:
     if days <= 0:
         return 0
     rows = daily_counts(days)
-    counts_by_day = {day_ts // 86400000: c for day_ts, c in rows}
+    counts_by_day: dict = {}
+    for day_ts, c in rows:
+        dt = datetime.fromtimestamp(day_ts / 1000).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        counts_by_day[dt.date()] = counts_by_day.get(dt.date(), 0) + c
     end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
-    start_key = int(start_dt.timestamp() // 86400)
-    end_key = int(end_dt.timestamp() // 86400)
     total = 0
-    for k in range(start_key, end_key + 1):
-        total += counts_by_day.get(k, 0)
+    cursor = start_dt
+    while cursor <= end_dt:
+        total += counts_by_day.get(cursor.date(), 0)
+        cursor += __import__("datetime").timedelta(days=1)
     return total // days
 
 
+# ──── 备份与维护 ────
 def backup(manual: bool = False) -> Optional[Path]:
     """创建一致性快照,返回备份文件路径"""
     if _conn is None:

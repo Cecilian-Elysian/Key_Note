@@ -8,7 +8,7 @@
   "font_family": "Microsoft YaHei UI",
   "window_alpha": 1.0,
   "remember_window_pos": true,
-  "_window_geometry": "450x500+200+200",
+  "_window_geometry": "",
   "chart_auto_refresh": true,
   "refresh_interval_sec": 5,
   "heatmap_days": 7,
@@ -21,5 +21,6 @@
   "db_flush_interval_sec": 1.0,
   "log_to_file": false,
   "enable_global_hotkey": false,
-  "global_hotkey": "ctrl+shift+k"
+  "global_hotkey": "ctrl+shift+k",
+  "data_dir": ""
 }

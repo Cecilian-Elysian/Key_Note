@@ -1,4 +1,4 @@
-"""KeyNote - 键盘记录器 入口"""
+"""KeyNote 程序入口,按序启动数据库 → 主窗口 → 键盘监听 → 系统托盘 → 全局热键 → mainloop 事件循环"""
 import sys
 import threading
 
@@ -12,6 +12,7 @@ import window
 _hotkey_listener = None
 
 
+# ──── 热键解析 ────
 def _parse_hotkey(spec: str):
     """将 'ctrl+shift+k' 解析为 pynput Key/KeyCode 集合。"""
     from pynput import keyboard
@@ -36,6 +37,7 @@ def _parse_hotkey(spec: str):
     return pressed_modifiers, trigger_char
 
 
+# ──── 全局热键监听 ────
 def _start_global_hotkey(app, spec: str) -> None:
     global _hotkey_listener
     if _hotkey_listener is not None:
@@ -109,6 +111,7 @@ def _start_global_hotkey(app, spec: str) -> None:
     _hotkey_listener.start()
 
 
+# ──── 窗口显隐切换 ────
 def _toggle_window_visibility(app) -> None:
     try:
         if app.state() == "withdrawn":
@@ -122,13 +125,15 @@ def _toggle_window_visibility(app) -> None:
             pass
 
 
+# ──── 主启动流程 ────
 def main() -> int:
     cfg = config.load()
     db.init(cfg)
 
     app = window.App()
 
-    if cfg.get("start_minimized", False):
+    silent = cfg.get("silent_start", False)
+    if silent or cfg.get("start_minimized", False):
         app.withdraw()
 
     if cfg.get("listener_enabled", True):
@@ -137,10 +142,16 @@ def main() -> int:
     tray_icon = tray.start(app)
     app._tray_icon = tray_icon
 
+    if cfg.get("hide_tray_icon", False):
+        try:
+            tray.set_visible(False)
+        except Exception:
+            pass
+
     if cfg.get("enable_global_hotkey", False):
         _start_global_hotkey(app, str(cfg.get("global_hotkey", "ctrl+shift+k")))
 
-    if cfg.get("start_minimized", False):
+    if not silent and cfg.get("start_minimized", False):
         if not cfg.get("auto_start", False):
             try:
                 tray_icon.notify("KeyNote 已启动,窗口已最小化到托盘")

@@ -1,4 +1,4 @@
-"""速率图页面:每分钟按键数随时间变化。"""
+"""[死代码] 速率图页面,每分钟按键数随时间变化的折线图,使用 matplotlib 渲染"""
 from __future__ import annotations
 
 from datetime import datetime

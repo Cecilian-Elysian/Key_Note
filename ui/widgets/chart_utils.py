@@ -1,4 +1,4 @@
-"""可缩放 matplotlib Figure 画布的工具函数。"""
+"""matplotlib 可缩放画布工厂,创建自适应容器尺寸的 FigureCanvas,统一背景色同步,提供给 dashboard 折线图和各死代码页面复用"""
 from __future__ import annotations
 
 from typing import Optional, Tuple

@@ -1,5 +1,7 @@
-"""GitHub 风格年度贡献热力图组件。"""
+"""GitHub 风格年度贡献热力图 Canvas 组件,支持多行拆分布局、基于分位数的四色阶、鼠标悬停日期/数量提示"""
 from __future__ import annotations
+
+# ──── 布局常量 ────
 
 import tkinter as tk
 from datetime import timedelta
@@ -85,6 +87,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self.refresh()
         self.after(50, self._render)
 
+    # ──── 数据刷新 ────
     def refresh(self) -> None:
         grid, start_dt, end_dt = db.heatmap_yearly(self._days)
         self._grid = grid
@@ -117,6 +120,22 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self._summary_lbl.configure(
             text=f"活跃 {active}/{self._days} 天 · 最高 {max_val:,} · 合计 {total:,}"
         )
+
+        import sys as _sys, os as _os
+        if _os.environ.get("KEYNOTE_HEATMAP_DIAG") and not getattr(self, "_diag_done", False):
+            _diag = [
+                f"[HEATMAP-DIAG] start_dt={start_dt} weekday={start_dt.weekday()}",
+                f"[HEATMAP-DIAG] end_dt={end_dt}",
+                f"[HEATMAP-DIAG] grid_start={self._grid_start} weekday={self._grid_start.weekday()}",
+                f"[HEATMAP-DIAG] _daily_values nonzero: {[(i, self._daily_values[i]) for i in range(self._days) if self._daily_values[i] > 0]}",
+                f"[HEATMAP-DIAG] sub_cols={self._sub_cols} sub_start_col={self._sub_start_col}",
+            ]
+            for w in range(53):
+                for d in range(7):
+                    if grid[w, d] > 0:
+                        _diag.append(f"[HEATMAP-DIAG] grid[{w},{d}]={grid[w, d]}")
+            print("\n".join(_diag), file=_sys.stderr, flush=True)
+            self._diag_done = True
 
         self._render()
 
@@ -174,6 +193,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             return c.heatmap_l3
         return c.heatmap_l4
 
+    # ──── 布局计算 ────
     def _compute_layout(self, w: int, h: int):
         if w < 100 or h < 60:
             return None
@@ -220,6 +240,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
     def _sub_layout(self, layout, sub_idx):
         return layout["ox"], layout["sub_origins"][sub_idx], layout["cell"], layout["spacing"]
 
+    # ──── 渲染与标签 ────
     def _render(self) -> None:
         if self._canvas is None:
             return
@@ -290,6 +311,13 @@ class GhHeatmapWidget(ctk.CTkFrame):
         if 0 <= col < _TOTAL_COLS and 0 <= row < _ROWS and 0 <= sub_idx < rows:
             self._update_hover_rect(col, row, sub_idx)
 
+        h = int(layout["total_used"])
+        self._canvas.configure(height=h)
+        try:
+            self.configure(height=h)
+        except Exception:
+            pass
+
     def _draw_month_labels(
         self, ox: float, oy: float, cell: float, spacing: float,
         start_col: int, cols_in_row: int,
@@ -356,6 +384,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
                 pass
         self._resize_after_id = self.after(80, self._render)
 
+    # ──── 交互(hover/tooltip) ────
     def _on_motion(self, event) -> None:
         if self._grid is None or self._grid_start is None:
             return
@@ -474,6 +503,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         super().destroy()
 
 
+# ──── 悬停提示 ────
 class _HeatmapTooltip:
     def __init__(self, parent):
         self._parent = parent
