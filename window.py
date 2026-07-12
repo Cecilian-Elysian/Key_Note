@@ -76,7 +76,6 @@ def _draw_gear_icon(colors) -> Image.Image:
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self._hide_from_taskbar()
         self.cfg = config.load()
         theme.apply_theme(self.cfg.get("theme", "dark"))
 
@@ -114,6 +113,8 @@ class App(ctk.CTk):
         self._build_ui()
         self.refresh()
         self._schedule_auto_refresh()
+        self.update_idletasks()
+        self._hide_from_taskbar()
 
     def _pick_app_font(self) -> Optional[str]:
         candidate = str(self.cfg.get("font_family", "Microsoft YaHei UI"))
@@ -163,9 +164,17 @@ class App(ctk.CTk):
             GWL_EXSTYLE = -20
             WS_EX_APPWINDOW = 0x00040000
             WS_EX_TOOLWINDOW = 0x00000080
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_NOZORDER = 0x0004
+            SWP_FRAMECHANGED = 0x0020
             style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
             style = (style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
             ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, 0, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+            )
         except Exception:
             pass
 
@@ -256,8 +265,7 @@ class App(ctk.CTk):
             pass
 
     def _auto_refresh(self) -> None:
-        if not listener.is_paused():
-            self.refresh()
+        self.refresh()
         self._check_idle()
         self._schedule_auto_refresh()
 

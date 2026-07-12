@@ -313,10 +313,6 @@ class GhHeatmapWidget(ctk.CTkFrame):
 
         h = int(layout["total_used"])
         self._canvas.configure(height=h)
-        try:
-            self.configure(height=h)
-        except Exception:
-            pass
 
     def _draw_month_labels(
         self, ox: float, oy: float, cell: float, spacing: float,
