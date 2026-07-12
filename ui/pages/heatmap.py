@@ -1,4 +1,4 @@
-"""年度热力图页面:顶部 4 张统计卡 + GitHub 风格热力图(右上角设置按钮)。"""
+"""[死代码] 年度热力图页面,顶部 4 张统计卡(今日/7日均/30日均/累计) + GhHeatmapWidget 年度热力图,右上角设置按钮打开 SettingsPanel"""
 from __future__ import annotations
 
 import customtkinter as ctk

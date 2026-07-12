@@ -1,8 +1,4 @@
-"""页面基类。
-
-所有页面提供 build / refresh / apply_theme 三接口。
-build 在第一次激活时调用,refresh 在数据更新时调用。
-"""
+"""BasePage 页面基类,定义 build/refresh/apply_theme 三接口生命周期,build 在 ensure_built 时首次调用,refresh 在数据更新时触发"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

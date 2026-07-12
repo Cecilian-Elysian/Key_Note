@@ -7,8 +7,13 @@ __pycache__/
 build/
 dist/
 install/
+installer/
 *.spec
 *.exe
+portable.flag
+
+# Tooling state (opencode plans / cache)
+.opencode/
 
 # Database
 keynote.db
@@ -35,6 +40,9 @@ logs/
 .venv/
 venv/
 .env
+
+# Changelog (not tracked in git)
+LOG.md
 
 # Test / coverage
 .pytest_cache/

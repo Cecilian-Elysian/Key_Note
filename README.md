@@ -18,26 +18,37 @@
   - 手动备份 / VACUUM / 保留天数均可通过托盘菜单调整
 - **系统托盘**: 显示窗口 / 暂停 / 数据管理 / 退出 / 设置
 - **设置面板** (主窗口内嵌 Tab,也可从托盘菜单 "⚙ 设置..." 进入):
-  - 21 项配置,按"常规 / 界面 / 刷新与图表 / 数据库与备份 / 数据导出·日志"分组
-  - 含启动最小化、闲置自动暂停、主题、字体、窗口透明度、记住窗口位置、CSV 导出、日志写入等
+  - 24 项配置,按"常规 / 全局热键 / 界面 / 刷新与图表 / 数据库与备份 / 数据导出·日志"分组
+  - 含启动最小化、闲置自动暂停、全局热键、主题、字体、窗口透明度、记住窗口位置、CSV 导出、日志写入等
+  - 可在"数据库与备份"组自定义 `data_dir` 数据存储目录(留空=exe 同目录;改后需重启)
 
 ## 项目结构
 
 ```
 key_note/
 ├── key_note.py         # 入口 (按 start_minimized / listener_enabled 分支)
-├── config.py           # 配置持久化
+├── run_app.py          # PyInstaller 入口 shim
+├── config.py           # 配置持久化 + exe_dir() PyInstaller 兼容
 ├── db.py               # SQLite 异步写入 + 聚合表 + 备份 + 保留 + CSV 导出 + 日志
 ├── listener.py         # pynput 键盘监听
 ├── tray.py             # pystray 系统托盘 (含数据管理子菜单 + 设置入口)
 ├── window.py           # customtkinter 主窗口 + 图表 + 设置回调
 ├── settings_panel.py   # 设置面板 (主窗口第 4 个 Tab)
-├── keynote.db          # 数据 (运行后自动创建)
+├── theme.py            # 颜色/间距/圆角 设计令牌 + dark/light 主题
+├── keynote.db          # 数据 (运行后自动创建,位置由 data_dir 决定)
 ├── keynote.db-wal      # WAL 日志 (运行中)
 ├── keynote.db-shm      # 共享内存 (运行中)
 ├── keynote.log         # 日志 (启用 log_to_file 后创建)
 ├── config.json         # 用户配置 (运行后自动创建)
-├── backups/            # 自动备份目录 (运行后自动创建)
+├── backups/            # 自动备份目录
+├── ui/                 # UI 子包
+│   ├── pages/          # 页面类 (dashboard / heatmap / rate / top_keys / settings)
+│   └── widgets/        # 复用组件 (gh_heatmap / chart_utils)
+├── build.ps1           # 一键构建脚本 (备份用户数据 → PyInstaller → 恢复)
+├── KeyNote.spec        # PyInstaller 配置
+├── KeyNote_Setup.iss   # Inno Setup 安装脚本
+├── dist/               # PyInstaller 产物 (便携版 KeyNote.exe)
+├── installer/          # Inno Setup 产物 (KeyNote_Setup.exe)
 └── .gitignore
 ```
 
@@ -68,7 +79,8 @@ pyinstaller --noconfirm --windowed --onefile --name KeyNote key_note.py
 
 - 只记录按键名 + 时间戳
 - **不记录**当前窗口、应用名、剪贴板、按键周围文本
-- 数据完全本地 (`keynote.db`)
+- 数据完全本地 (`keynote.db`),默认存到 KeyNote.exe 同目录
+- 也可在设置面板"数据库与备份"组指定自定义数据目录 (`data_dir`)
 - 自动备份也仅存于本地 `backups/` 目录
 
 ## 配置 (config.json)
@@ -89,26 +101,43 @@ pyinstaller --noconfirm --windowed --onefile --name KeyNote key_note.py
   "refresh_interval_sec": 5,
   "heatmap_days": 7,
   "rate_chart_hours": 24,
-  "db_retention_days": 7,
+  "db_retention_days": 365,
   "db_auto_backup_days": 7,
   "backup_keep_daily": 7,
   "backup_keep_weekly": 4,
   "db_flush_batch_size": 200,
   "db_flush_interval_sec": 1.0,
-  "log_to_file": false
+  "log_to_file": false,
+  "enable_global_hotkey": false,
+  "global_hotkey": "ctrl+shift+k",
+  "data_dir": ""
 }
 ```
 
-完整配置可在主窗口 **设置** 选项卡里改,也可直接编辑 `config.json`。大部分配置保存即生效,下列项 **重启后** 生效: `log_to_file`、`start_minimized`、`listener_enabled`、`theme`、`font_family` 中的字体候选不存在时的回退路径。
+完整配置可在主窗口 **设置** 选项卡里改,也可直接编辑 `config.json`。大部分配置保存即生效,下列项 **重启后** 生效: `log_to_file`、`start_minimized`、`listener_enabled`、`theme`、`font_family` 中的字体候选不存在时的回退路径,以及 `data_dir`(改路径后下次启动才生效)。
+
+## 数据存储位置
+
+默认情况下,`keynote.db` / `config.json` / `backups/` / `keynote.log` 都放在 KeyNote.exe 同目录下。便携版可直接把整个文件夹带走。
+
+如需自定义(例如存到 D:\KeyNoteData),有两种方式:
+
+1. **设置面板**(推荐):打开"⚙ 设置 → 数据库与备份 → 数据存储目录",点"📂 浏览"选择文件夹,保存,重启 KeyNote 生效
+2. **手动编辑** `config.json`:把 `"data_dir": ""` 改为 `"data_dir": "D:\\KeyNoteData"`,重启生效
+
+注意:修改 `data_dir` 后,旧位置的数据**不会自动迁移**(因为每个 app 用户的数据习惯不同)。如需迁移,手动把 `keynote.db` / `config.json` / `backups/` 复制到新位置即可。
 
 ## 数据库 Schema
 
 | 表 | 说明 |
 |---|---|
-| `keypresses` | 原始按键记录 (受保留策略影响) |
+| `schema_version` | 迁移版本 (v1~v4,每次启动自动迁移) |
 | `sessions` | 录制会话 (启动/结束时间) |
-| `agg_minute` | 每分钟按键总数 (永久) |
-| `agg_hour` | 每小时按键总数 (永久) |
+| `keypresses` | 原始按键记录 (受保留策略影响,默认 365 天) |
+| `agg_minute` | 每分钟按键总数 (本地整分;永久) |
+| `agg_hour` | 每小时按键总数 (本地整点;永久) |
+| `agg_day` | 每日按键总数 (本地午夜;永久;v4 引入) |
 | `agg_dow_hour` | 按 (星期, 小时) 累计 (永久) |
 | `agg_key_total` | 按键累计次数 (永久) |
-| `schema_version` | 迁移版本 |
+
+> 历史 v3 之前 `agg_day` 桶按 UTC 午夜分桶,导致 UTC+8 时区凌晨 00:00–08:00 按键被错误归类。v4 修复后改用本地午夜分桶,首次启动会自动迁移。

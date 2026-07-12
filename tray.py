@@ -1,5 +1,7 @@
-"""pystray 系统托盘"""
+"""pystray 系统托盘模块,提供动态菜单(实时统计/暂停继续/数据管理/设置/退出)、开机自启注册、托盘图标显隐控制"""
 import sys
+
+# ──── 托盘图标 ────
 import threading
 import time
 import winreg
@@ -21,6 +23,9 @@ KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 _RETENTION_OPTIONS = [("永久", 0), ("7 天", 7), ("180 天", 180), ("365 天", 365), ("730 天", 730)]
 
+_icon: "Icon | None" = None
+_window: "App | None" = None
+
 
 def _icon_image(state: str = "active") -> Image.Image:
     palette = {
@@ -35,6 +40,7 @@ def _icon_image(state: str = "active") -> Image.Image:
     return img
 
 
+# ──── 开机自启 ────
 def _set_autostart(enable: bool) -> None:
     if not sys.platform.startswith("win"):
         return
@@ -57,6 +63,7 @@ def _set_autostart(enable: bool) -> None:
         print(f"autostart err: {e}")
 
 
+# ──── 设置窗口 ────
 def _open_settings_toplevel(master):
     import customtkinter as ctk
     from settings_panel import SettingsPanel
@@ -70,7 +77,10 @@ def _open_settings_toplevel(master):
     panel.load_values(master.cfg)
 
 
+# ──── 菜单构建与启动 ────
 def start(window: "App") -> Icon:
+    global _icon, _window
+    _window = window
     cfg = config.load()
     icon_ref: dict = {"icon": None}
 
@@ -261,5 +271,22 @@ def start(window: "App") -> Icon:
 
     icon = Icon(APP_NAME, _icon_image(), "KeyNote 键盘记录", _make_menu())
     icon_ref["icon"] = icon
+    _icon = icon
     threading.Thread(target=icon.run, daemon=True).start()
     return icon
+
+
+# ──── 托盘显隐 ────
+def set_visible(show: bool) -> None:
+    """动态显示/隐藏托盘图标。"""
+    global _icon
+    if show:
+        if _icon is None and _window is not None:
+            start(_window)
+    else:
+        if _icon is not None:
+            try:
+                _icon.stop()
+            except Exception:
+                pass
+            _icon = None

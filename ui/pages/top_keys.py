@@ -1,4 +1,4 @@
-"""按键排行页面:Top N 按键次数横向条形图。"""
+"""[死代码] 按键排行页面,Top N 按键次数横向条形图,使用 matplotlib 渲染"""
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

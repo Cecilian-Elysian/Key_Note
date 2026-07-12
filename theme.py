@@ -1,10 +1,7 @@
-"""统一主题令牌,集中管理颜色 / 间距 / 圆角。
-
-支持 dark / light 两套预设。所有 UI 模块通过 apply_theme() 应用,
-避免在 window/tray/settings 中散落颜色字面量。
-"""
+"""统一主题令牌系统,集中管理 dark/light 两套预设的颜色/间距/圆角,UI 模块通过 current().colors 取色,支持应用主题与递归重绘"""
 from __future__ import annotations
 
+# ──── 令牌定义 ────
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -63,6 +60,7 @@ class Theme:
     radius: RadiusTokens = field(default_factory=RadiusTokens)
 
 
+# ──── 预设主题 ────
 DARK = Theme(
     name="dark",
     appearance="dark",
@@ -136,6 +134,7 @@ def get(name: str) -> Theme:
     return THEMES.get(name, DARK)
 
 
+# ──── 切换与应用 ────
 def apply_theme(name: str, root: "CTk | None" = None) -> Theme:
     """切换主题并应用到 customtkinter 根窗口。
 

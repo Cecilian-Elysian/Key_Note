@@ -1,4 +1,4 @@
-"""设置页面:包装现有 settings_panel,作为侧边栏中的一页。"""
+"""[死代码] 设置页面,包装 SettingsPanel 作为页面,通过 app._on_settings_changed 回调应用配置"""
 from __future__ import annotations
 
 import customtkinter as ctk
