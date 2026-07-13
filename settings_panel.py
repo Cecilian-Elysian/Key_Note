@@ -3,7 +3,6 @@ from __future__ import annotations
 
 # ──── 常量与辅助函数 ────
 
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -11,16 +10,35 @@ from typing import Any, Callable, Optional
 import customtkinter as ctk
 
 import config
+import theme
 
 
-_CARD_BG = "#2A2A2A"
+# ──── 主题感知颜色(跟主题走,不写死) ────
 _TOGGLE_ACTIVE = "#2196F3"
 _HELP_ICON = "#FFB300"
 
 
+def _card_bg() -> str:
+    return theme.current().colors.bg_secondary
+
+
+def _panel_bg() -> str:
+    return theme.current().colors.bg_primary
+
+
+def _tip_bg() -> str:
+    return theme.current().colors.bg_secondary
+
+
+def _tip_fg() -> str:
+    return theme.current().colors.fg_primary
+
+
 _REQUIRES_RESTART_KEYS = {
-    "theme", "font_family", "data_dir", "log_to_file",
+    "theme",
     "start_minimized", "listener_enabled", "silent_start",
+    "mouse_listener_enabled",
+    "backup_dir",
 }
 
 _REQUIRES_RESTART_HINT = "(重启后生效)"
@@ -30,46 +48,11 @@ _HINTS_BY_KEY: dict[str, str] = {
     "auto_start": "系统登录时自动启动 KeyNote,持续后台记录按键。",
     "silent_start": "完全静默启动,无窗口、无托盘通知(适合后台常驻)。",
     "hide_tray_icon": "隐藏系统托盘图标(极致隐身),仅靠热键/重启恢复。",
-    "edge_snap": "窗口拖到屏幕边缘时自动贴边收纳。",
-    "admin_restart": "键盘钩子通常需要管理员权限,点击以重启 KeyNote。",
+    "mouse_listener_enabled": "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数,供键盘页副卡展示。",
+    "backup_dir": "备份 .db 文件的目标目录,空=使用数据目录下的 backups/。",
 }
 
-_RETENTION_CHOICES = [
-    ("永久", 0),
-    ("7 天", 7),
-    ("180 天", 180),
-    ("365 天", 365),
-    ("730 天", 730),
-]
-_FONT_CHOICES = [
-    "Microsoft YaHei UI",
-    "Microsoft YaHei",
-    "SimHei",
-    "SimSun",
-    "Noto Sans SC",
-    "PingFang SC",
-    "Arial",
-    "System Default",
-]
-_HOTKEY_CHOICES = [
-    "ctrl+shift+k",
-    "ctrl+alt+k",
-    "alt+shift+k",
-    "ctrl+shift+s",
-    "ctrl+alt+s",
-]
-
-
 _UNIT_BY_KEY: dict[str, str] = {
-    "refresh_interval_sec": "秒",
-    "heatmap_days": "天",
-    "rate_chart_hours": "小时",
-    "idle_pause_min": "分钟",
-    "db_auto_backup_days": "天",
-    "backup_keep_daily": "份",
-    "backup_keep_weekly": "份",
-    "db_flush_batch_size": "条",
-    "db_flush_interval_sec": "秒",
     "window_alpha": "",
 }
 
@@ -78,28 +61,19 @@ def label_unit(key: str) -> str:
     return _UNIT_BY_KEY.get(key, "")
 
 
-def _retention_label_to_int(label: str) -> int:
-    for n, d in _RETENTION_CHOICES:
-        if n == label:
-            return d
-    return 7
-
-
-def _retention_int_to_label(v: int) -> str:
-    for n, d in _RETENTION_CHOICES:
-        if d == v:
-            return n
-    return "7 天"
-
-
 class _HoverTip:
     def __init__(self, anchor: ctk.CTkBaseClass, text: str) -> None:
         self._anchor = anchor
         self._text = text
         self._win: Any = None
+        self._label: Any = None
 
     def show(self) -> None:
         if self._win is not None:
+            try:
+                self._label.configure(fg_color=_tip_bg(), text_color=_tip_fg())
+            except Exception:
+                pass
             return
         try:
             x = self._anchor.winfo_rootx() + 20
@@ -109,10 +83,11 @@ class _HoverTip:
         win = ctk.CTkToplevel(self._anchor)
         win.overrideredirect(True)
         win.geometry(f"+{x}+{y}")
-        ctk.CTkLabel(
-            win, text=self._text, fg_color="#222222", text_color="#F5F5F5",
+        self._label = ctk.CTkLabel(
+            win, text=self._text, fg_color=_tip_bg(), text_color=_tip_fg(),
             corner_radius=6, padx=10, pady=6, font=("", 10),
-        ).pack()
+        )
+        self._label.pack()
         self._win = win
 
     def hide(self) -> None:
@@ -122,6 +97,7 @@ class _HoverTip:
             except Exception:
                 pass
             self._win = None
+            self._label = None
 
 
 # ──── 控件构建器 ────
@@ -173,10 +149,7 @@ class FieldSpec:
             raw = float(ctrl.get())
             return round(raw, 2) if self.kind == "slider_float" else int(round(raw))
         if name == "CTkComboBox":
-            v = ctrl.get()
-            if self.key == "db_retention_days":
-                return _retention_label_to_int(v)
-            return v
+            return ctrl.get()
         if name == "CTkEntry":
             return ctrl.get().strip()
         return ctrl.get()
@@ -196,10 +169,7 @@ class FieldSpec:
             if lbl is not None:
                 lbl.configure(text=self._format_slider_value(value))
         elif name == "CTkComboBox":
-            if self.key == "db_retention_days":
-                ctrl.set(_retention_int_to_label(int(value)))
-            else:
-                ctrl.set(str(value))
+            ctrl.set(str(value))
         elif name == "CTkEntry":
             ctrl.delete(0, "end")
             if value:
@@ -234,9 +204,7 @@ class FieldSpec:
     ) -> ctk.CTkComboBox:
         right = parent
         values = choices if choices is not None else (self.choices or [])
-        if self.key == "db_retention_days":
-            values = [n for n, _ in _RETENTION_CHOICES]
-        combo = ctk.CTkComboBox(right, values=values, state="readonly")
+        combo = ctk.CTkComboBox(right, values=values, state="readonly", width=150)
         combo.pack(side="right", padx=8)
         return combo
 
@@ -304,66 +272,95 @@ GROUPS: list[tuple[str, list[FieldSpec]]] = [
         FieldSpec("switch", "auto_start", "开机自启动"),
         FieldSpec("switch", "silent_start", "静默启动"),
         FieldSpec("switch", "hide_tray_icon", "隐藏托盘图标"),
-        FieldSpec("switch", "edge_snap", "贴边自动收纳"),
         FieldSpec("switch", "start_minimized", "启动时最小化"),
         FieldSpec("switch", "close_to_tray", "关闭窗口到托盘"),
         FieldSpec("switch", "listener_enabled", "启动时启动监听"),
-        FieldSpec("slider_int", "idle_pause_min", "闲置 N 分钟自动暂停 (0=禁用)", lo=0, hi=60),
-        FieldSpec("button", "admin_restart", "以管理员身份重启"),
-    ]),
-    ("全局热键", [
-        FieldSpec("switch", "enable_global_hotkey", "启用全局热键切换主窗口"),
-        FieldSpec("combo_choices", "global_hotkey", "热键组合", choices=_HOTKEY_CHOICES),
+        FieldSpec("switch", "mouse_listener_enabled", "记录鼠标点击"),
     ]),
     ("界面", [
         FieldSpec("combo", "theme", "主题", choices=["dark", "light"]),
-        FieldSpec("combo_choices", "font_family", "字体", choices=_FONT_CHOICES),
         FieldSpec("slider_float", "window_alpha", "窗口透明度 (0.6 ~ 1.0)", lo=0.6, hi=1.0, step=0.05),
         FieldSpec("switch", "remember_window_pos", "记住窗口位置"),
     ]),
-    ("高级功能", [
-        FieldSpec("switch", "chart_auto_refresh", "图表自动刷新"),
-        FieldSpec("slider_int", "refresh_interval_sec", "刷新间隔", lo=1, hi=60),
-        FieldSpec("slider_int", "heatmap_days", "热力图统计天数", lo=1, hi=365),
-        FieldSpec("slider_int", "rate_chart_hours", "速率图小时数", lo=1, hi=168),
-    ]),
-    ("数据库与备份", [
-        FieldSpec("combo", "db_retention_days", "原始数据保留"),
-        FieldSpec("path", "data_dir", "数据存储目录",
-                  hint="留空=默认 exe 同目录。点击 📂 浏览选择文件夹"),
-        FieldSpec("slider_int", "db_auto_backup_days", "自动备份间隔", lo=1, hi=30),
-        FieldSpec("slider_int", "backup_keep_daily", "日备份保留份数", lo=1, hi=30),
-        FieldSpec("slider_int", "backup_keep_weekly", "周备份保留份数", lo=0, hi=12),
-        FieldSpec("slider_int", "db_flush_batch_size", "批量写入大小", lo=50, hi=2000),
-        FieldSpec("slider_float", "db_flush_interval_sec", "写入间隔", lo=0.1, hi=10.0, step=0.1),
-    ]),
-    ("数据导出 / 日志", [
-        FieldSpec("switch", "log_to_file", "启用日志写入 keynote.log"),
+    ("数据", [
+        FieldSpec("path", "backup_dir", "备份目录"),
     ]),
 ]
 
 
 # ──── 面板主体 ────
+def open_or_focus(master, cfg: dict, on_save_callback) -> None:
+    """创建或聚焦设置面板。重复调用不会重复创建,自动聚焦已有窗口。"""
+    existing = getattr(master, "_settings_win", None)
+    if existing is not None:
+        try:
+            if existing.winfo_exists():
+                existing.deiconify()
+                existing.lift()
+                existing.focus_force()
+                return
+        except Exception:
+            pass
+        try:
+            master._settings_win = None
+        except Exception:
+            pass
+        try:
+            master._settings_panel = None
+        except Exception:
+            pass
+
+    top = ctk.CTkToplevel(master)
+    top.title("KeyNote 设置")
+    top.geometry("400x480")
+    top.resizable(False, False)
+    panel = SettingsPanel(top, on_save_callback=on_save_callback)
+    panel.pack(fill="both", expand=True)
+    panel.load_values(cfg)
+
+    def _on_close_settings():
+        try:
+            panel._on_save()
+        except Exception:
+            pass
+        try:
+            master._settings_win = None
+        except Exception:
+            pass
+        try:
+            master._settings_panel = None
+        except Exception:
+            pass
+        try:
+            top.destroy()
+        except Exception:
+            pass
+
+    top.protocol("WM_DELETE_WINDOW", _on_close_settings)
+    master._settings_win = top
+    master._settings_panel = panel
+
+
 class SettingsPanel(ctk.CTkScrollableFrame):
     def __init__(self, master, on_save_callback: Optional[Callable[[dict], None]] = None):
-        super().__init__(master, label_text="", fg_color="#1E1E1E")
+        super().__init__(master, label_text="", fg_color=_panel_bg())
         self._on_save_callback = on_save_callback
         self._fields: dict[str, FieldSpec] = {}
         self._controls: dict[str, ctk.CTkBaseClass] = {}
         self._value_labels: dict[str, ctk.CTkLabel] = {}
         self._path_validators: dict[str, Callable[[], None]] = {}
-        self._export_btn: Optional[ctk.CTkButton] = None
+        self._group_frames: list[ctk.CTkFrame] = []
         self._build()
         self.load_values(config.load())
 
     def _build(self) -> None:
         for group_title, fields in GROUPS:
             self._build_group(group_title, fields)
-        self._build_export_section()
         self._build_footer()
 
     def _build_group(self, title: str, fields: list[FieldSpec]) -> None:
-        frame = ctk.CTkFrame(self, fg_color=_CARD_BG, corner_radius=12)
+        frame = ctk.CTkFrame(self, fg_color=_card_bg(), corner_radius=12)
+        self._group_frames.append(frame)
         frame.pack(fill="x", padx=5, pady=(8, 4))
         ctk.CTkLabel(
             frame, text=title, font=("", 14, "bold"), anchor="w"
@@ -371,6 +368,50 @@ class SettingsPanel(ctk.CTkScrollableFrame):
 
         for field_spec in fields:
             self._render_field(frame, field_spec)
+
+    def apply_theme(self) -> None:
+        """主题切换时重染面板所有 widget。"""
+        c = theme.current().colors
+        try:
+            self.configure(fg_color=_panel_bg())
+        except Exception:
+            pass
+        for f in self._group_frames:
+            try:
+                f.configure(fg_color=_card_bg())
+            except Exception:
+                pass
+        for ctrl in self._controls.values():
+            try:
+                cls = type(ctrl).__name__
+                if cls == "CTkSwitch":
+                    ctrl.configure(progress_color=_TOGGLE_ACTIVE)
+                elif cls == "CTkButton":
+                    ctrl.configure(
+                        fg_color=c.bg_secondary,
+                        text_color=c.fg_primary,
+                        hover_color=c.bg_tertiary,
+                        border_color=c.border,
+                    )
+            except Exception:
+                pass
+        for btn in (getattr(self, "_save_btn", None), getattr(self, "_restore_btn", None)):
+            if btn is None:
+                continue
+            try:
+                btn.configure(
+                    fg_color=c.bg_secondary,
+                    text_color=c.fg_primary,
+                    hover_color=c.bg_tertiary,
+                    border_color=c.border,
+                )
+            except Exception:
+                pass
+        try:
+            if hasattr(self, "_save_status") and self._save_status is not None:
+                self._save_status.configure(text_color=c.fg_muted)
+        except Exception:
+            pass
 
     def _render_field(self, group_frame: ctk.CTkBaseClass, field_spec: FieldSpec) -> None:
         row = ctk.CTkFrame(group_frame, fg_color="transparent")
@@ -416,17 +457,6 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             ctrl.configure(command=_on_change)
             self._value_labels[field_spec.key] = val_lbl
 
-    def _build_export_section(self) -> None:
-        frame = ctk.CTkFrame(self)
-        frame.pack(fill="x", padx=5, pady=4)
-        row, right = self._make_row(frame, "导出过去 30 天的按键记录到 CSV")
-        btn = ctk.CTkButton(right, text="📤 导出 CSV", width=140)
-        btn.pack(side="right", padx=8)
-        btn.configure(command=self._on_export_csv)
-        self._export_btn = btn
-        self._export_status = ctk.CTkLabel(frame, text="", text_color="gray")
-        self._export_status.pack(fill="x", padx=20, pady=(0, 6))
-
     def _make_row(self, parent, label_text: str) -> tuple:
         row = ctk.CTkFrame(parent)
         row.pack(fill="x", padx=12, pady=3)
@@ -442,16 +472,16 @@ class SettingsPanel(ctk.CTkScrollableFrame):
         bar = ctk.CTkFrame(frame)
         bar.pack(fill="x", padx=12, pady=8)
 
-        ctk.CTkButton(bar, text="💾 保存并应用", command=self._on_save, width=140).pack(
-            side="left", padx=6
+        self._save_btn = ctk.CTkButton(
+            bar, text="💾 保存并应用", command=self._on_save, width=140
         )
-        ctk.CTkButton(
+        self._save_btn.pack(side="left", padx=6)
+        self._restore_btn = ctk.CTkButton(
             bar, text="🔄 恢复默认", command=self._on_restore_defaults, width=120
-        ).pack(side="left", padx=6)
-        ctk.CTkButton(
-            bar, text="↩ 重载当前值", command=self._on_reload, width=120
-        ).pack(side="left", padx=6)
-        self._save_status = ctk.CTkLabel(bar, text="", text_color="gray")
+        )
+        self._restore_btn.pack(side="left", padx=6)
+        c = theme.current().colors
+        self._save_status = ctk.CTkLabel(bar, text="", text_color=c.fg_muted)
         self._save_status.pack(side="right", padx=12)
 
     def _read_controls(self) -> dict:
@@ -466,6 +496,7 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             field_spec = self._fields[key]
             value = cfg.get(key, config.DEFAULTS.get(key))
             field_spec.write(ctrl, value, self)
+
 
         for validator in self._path_validators.values():
             try:
@@ -501,47 +532,3 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             self._on_save_callback(merged)
         self._save_status.configure(text="✓ 已恢复默认", text_color="green")
         self.after(2500, lambda: self._save_status.configure(text=""))
-
-    def _on_reload(self) -> None:
-        self.load_values(config.load())
-        self._save_status.configure(text="✓ 已从磁盘重载", text_color="gray")
-        self.after(2500, lambda: self._save_status.configure(text=""))
-
-    def _on_export_csv(self) -> None:
-        try:
-            from tkinter import filedialog
-
-            path = filedialog.asksaveasfilename(
-                title="导出 CSV",
-                defaultextension=".csv",
-                filetypes=[("CSV", "*.csv"), ("All", "*.*")],
-                initialfile=f"keynote-export-{__import__('datetime').datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
-            )
-            if not path:
-                return
-            import db
-
-            count = db.export_csv(path, days=30)
-            self._export_status.configure(
-                text=f"✓ 导出 {count:,} 条记录到 {path}", text_color="green"
-            )
-        except Exception as e:
-            self._export_status.configure(text=f"导出失败: {e}", text_color="red")
-
-    def _on_admin_restart(self) -> None:
-        import ctypes
-
-        try:
-            params = " ".join(f'"{a}"' for a in sys.argv[1:])
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
-        except Exception:
-            pass
-        try:
-            if hasattr(self, "_on_save_callback") and self._on_save_callback:
-                self._on_save_callback(config.load())
-        except Exception:
-            pass
-        try:
-            self.winfo_toplevel().after(200, self.winfo_toplevel().destroy)
-        except Exception:
-            pass

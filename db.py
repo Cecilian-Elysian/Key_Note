@@ -1,4 +1,4 @@
-"""SQLite 数据持久化层:异步批量写入按键记录、聚合表更新(分钟/小时/天/周)、数据库迁移(v1~v4)、自动备份与保留策略清理、CSV 导出、健康状态检查"""
+"""SQLite 数据持久化层:异步批量写入按键记录与鼠标点击、聚合表更新(分钟/小时/天/周、按键类型、鼠标按钮)、数据库迁移(v1~v6)、自动备份与保留策略清理、CSV 导出、健康状态检查"""
 from __future__ import annotations
 
 # ──── 数据目录与迁移 ────
@@ -11,7 +11,7 @@ import shutil
 import sqlite3
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +24,14 @@ def _get_data_dir(cfg: dict) -> Path:
     """根据配置返回数据目录。空字符串=exe 同目录,非空=自定义路径。"""
     custom = cfg.get("data_dir", "")
     return Path(custom) if custom else config.exe_dir()
+
+
+def _get_backup_dir(cfg: dict) -> Path:
+    """返回备份目录。空 = data_dir/backups,非空 = 自定义路径(自动追加 /backups)。"""
+    custom = cfg.get("backup_dir", "")
+    if custom:
+        return Path(custom)
+    return _get_data_dir(cfg) / "backups"
 
 
 def _migrate_from_appdata(target_dir: Path) -> None:
@@ -103,6 +111,17 @@ _AGG_DAY_SQL = (
     "INSERT INTO agg_day(day_ts, count) VALUES (?, ?) "
     "ON CONFLICT(day_ts) DO UPDATE SET count = count + excluded.count"
 )
+_INSERT_MOUSE_SQL = (
+    "INSERT INTO mouse_clicks (ts, button, session_id) VALUES (?, ?, ?)"
+)
+_AGG_MOUSE_BUTTON_SQL = (
+    "INSERT INTO agg_mouse_button_total(button, count) VALUES (?, ?) "
+    "ON CONFLICT(button) DO UPDATE SET count = count + excluded.count"
+)
+_AGG_KEY_TYPE_SQL = (
+    "INSERT INTO agg_key_type_total(type, count) VALUES (?, ?) "
+    "ON CONFLICT(type) DO UPDATE SET count = count + excluded.count"
+)
 
 _LAST_CLEANUP_MONO = 0.0
 _CLEANUP_INTERVAL_SEC = 24 * 3600
@@ -137,12 +156,12 @@ def init(cfg: Optional[dict] = None) -> sqlite3.Connection:
     data_dir = _get_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
     DB_PATH = data_dir / "keynote.db"
-    BACKUP_DIR = data_dir / "backups"
+    BACKUP_DIR = _get_backup_dir(cfg)
     LOG_PATH = data_dir / "keynote.log"
     _migrate_from_appdata(data_dir)
     batch_size = int(cfg.get("db_flush_batch_size", 200))
     interval = float(cfg.get("db_flush_interval_sec", 1.0))
-    _retention_days = int(cfg.get("db_retention_days", 7))
+    _retention_days = int(cfg.get("db_retention_days", 365))
     auto_backup_days = int(cfg.get("db_auto_backup_days", 7))
 
     _setup_logger(bool(cfg.get("log_to_file", False)))
@@ -190,6 +209,10 @@ def _run_migrations() -> None:
         _migrate_to_v3()
     if current < 4:
         _migrate_to_v4()
+    if current < 5:
+        _migrate_to_v5()
+    if current < 6:
+        _migrate_to_v6()
     _conn.commit()
 
 
@@ -327,6 +350,45 @@ def _migrate_to_v4() -> None:
         )
 
 
+def _migrate_to_v5() -> None:
+    """新增鼠标点击事件 + 按键类型聚合。mouse_clicks(原表,受保留策略影响) + agg_mouse_button_total(永久)。"""
+    _conn.execute(
+        "CREATE TABLE IF NOT EXISTS mouse_clicks ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts INTEGER NOT NULL, "
+        "button TEXT NOT NULL, "
+        "session_id INTEGER REFERENCES sessions(id)"
+        ")"
+    )
+    _conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_mc_ts ON mouse_clicks(ts)"
+    )
+    _conn.execute(
+        "CREATE TABLE IF NOT EXISTS agg_mouse_button_total ("
+        "button TEXT PRIMARY KEY, "
+        "count INTEGER NOT NULL DEFAULT 0"
+        ")"
+    )
+    _conn.execute(
+        "INSERT INTO schema_version(version, applied_at) VALUES (5, ?)",
+        (int(time.time() * 1000),),
+    )
+
+
+def _migrate_to_v6() -> None:
+    """新增按键类型聚合(letter/digit/symbol/modifier/function)。"""
+    _conn.execute(
+        "CREATE TABLE IF NOT EXISTS agg_key_type_total ("
+        "type TEXT PRIMARY KEY, "
+        "count INTEGER NOT NULL DEFAULT 0"
+        ")"
+    )
+    _conn.execute(
+        "INSERT INTO schema_version(version, applied_at) VALUES (6, ?)",
+        (int(time.time() * 1000),),
+    )
+
+
 # ──── 会话管理 ────
 def _start_session() -> None:
     global _session_id
@@ -349,14 +411,24 @@ def _end_session() -> None:
 
 
 # ──── 写入队列 ────
-def enqueue(key: str) -> None:
-    """非阻塞入队,由 listener 在按键线程调用"""
+def _enqueue_event(kind: str, payload: str, ktype: str = "") -> None:
+    """非阻塞入队。事件格式:(ts_sec, kind, payload, ktype)"""
     if _write_queue is None or _shutdown_event.is_set():
         return
     try:
-        _write_queue.put_nowait((time.time(), key))
+        _write_queue.put_nowait((time.time(), kind, payload, ktype))
     except queue.Full:
         pass
+
+
+def enqueue(key: str, key_type: str = "letter") -> None:
+    """按键入队,key_type 由 listener 调用时分类(letter/digit/symbol/modifier/function)"""
+    _enqueue_event("k", key, key_type)
+
+
+def enqueue_mouse(button: str) -> None:
+    """鼠标点击入队,button: left/right/middle/x1/x2"""
+    _enqueue_event("m", button, "")
 
 
 # ──── 批量写入与聚合 ────
@@ -398,42 +470,56 @@ def _collect_batch(batch_size: int, interval: float) -> list:
 
 def _flush_batch(batch: list) -> None:
     try:
-        rows = []
+        k_rows: list = []
+        m_rows: list = []
         minute_buckets: dict = {}
         hour_buckets: dict = {}
         dow_hour_buckets: dict = {}
         key_buckets: dict = {}
+        key_type_buckets: dict = {}
         day_buckets: dict = {}
-        for ts_sec, key in batch:
+        mouse_buckets: dict = {}
+
+        for item in batch:
+            ts_sec, kind, payload, ktype = item
             ts_ms = int(ts_sec * 1000)
-            rows.append((ts_ms, key, _session_id))
-            minute_buckets[_local_minute_ms(ts_sec)] = (
-                minute_buckets.get(_local_minute_ms(ts_sec), 0) + 1
-            )
-            hour_buckets[_local_hour_ms(ts_sec)] = (
-                hour_buckets.get(_local_hour_ms(ts_sec), 0) + 1
-            )
-            dt = datetime.fromtimestamp(ts_sec)
-            dh = (dt.weekday(), dt.hour)
-            dow_hour_buckets[dh] = dow_hour_buckets.get(dh, 0) + 1
-            key_buckets[key] = key_buckets.get(key, 0) + 1
-            day_buckets[_local_midnight_ms(ts_sec)] = (
-                day_buckets.get(_local_midnight_ms(ts_sec), 0) + 1
-            )
+            if kind == "k":
+                k_rows.append((ts_ms, payload, _session_id))
+                m_ms = _local_minute_ms(ts_sec)
+                h_ms = _local_hour_ms(ts_sec)
+                d_ms = _local_midnight_ms(ts_sec)
+                minute_buckets[m_ms] = minute_buckets.get(m_ms, 0) + 1
+                hour_buckets[h_ms] = hour_buckets.get(h_ms, 0) + 1
+                dt = datetime.fromtimestamp(ts_sec)
+                dh = (dt.weekday(), dt.hour)
+                dow_hour_buckets[dh] = dow_hour_buckets.get(dh, 0) + 1
+                key_buckets[payload] = key_buckets.get(payload, 0) + 1
+                if ktype:
+                    key_type_buckets[ktype] = key_type_buckets.get(ktype, 0) + 1
+                day_buckets[d_ms] = day_buckets.get(d_ms, 0) + 1
+            elif kind == "m":
+                m_rows.append((ts_ms, payload, _session_id))
+                mouse_buckets[payload] = mouse_buckets.get(payload, 0) + 1
 
         with _conn:
-            _conn.executemany(_INSERT_SQL, rows)
-            _conn.executemany(_AGG_MINUTE_SQL, list(minute_buckets.items()))
-            _conn.executemany(_AGG_HOUR_SQL, list(hour_buckets.items()))
-            _conn.executemany(
-                _AGG_DOW_HOUR_SQL,
-                [(d, h, c) for (d, h), c in dow_hour_buckets.items()],
-            )
-            _conn.executemany(_AGG_KEY_SQL, list(key_buckets.items()))
-            if day_buckets:
-                _conn.executemany(_AGG_DAY_SQL, list(day_buckets.items()))
+            if k_rows:
+                _conn.executemany(_INSERT_SQL, k_rows)
+                _conn.executemany(_AGG_MINUTE_SQL, list(minute_buckets.items()))
+                _conn.executemany(_AGG_HOUR_SQL, list(hour_buckets.items()))
+                _conn.executemany(
+                    _AGG_DOW_HOUR_SQL,
+                    [(d, h, c) for (d, h), c in dow_hour_buckets.items()],
+                )
+                _conn.executemany(_AGG_KEY_SQL, list(key_buckets.items()))
+                if key_type_buckets:
+                    _conn.executemany(_AGG_KEY_TYPE_SQL, list(key_type_buckets.items()))
+                if day_buckets:
+                    _conn.executemany(_AGG_DAY_SQL, list(day_buckets.items()))
+            if m_rows:
+                _conn.executemany(_INSERT_MOUSE_SQL, m_rows)
+                _conn.executemany(_AGG_MOUSE_BUTTON_SQL, list(mouse_buckets.items()))
     except sqlite3.Error as e:
-        print(f"DB write error: {e}")
+        LOGGER.warning("DB write error: %s", e)
 
 
 def _maybe_cleanup() -> None:
@@ -447,13 +533,14 @@ def _maybe_cleanup() -> None:
     cutoff_ms = int(time.time() * 1000) - _retention_days * 86400000
     try:
         _conn.execute("DELETE FROM keypresses WHERE ts < ?", (cutoff_ms,))
+        _conn.execute("DELETE FROM mouse_clicks WHERE ts < ?", (cutoff_ms,))
         _conn.execute(
             "DELETE FROM sessions WHERE ended_at IS NOT NULL AND ended_at < ?",
             (cutoff_ms,),
         )
         _conn.commit()
     except sqlite3.Error as e:
-        print(f"DB cleanup error: {e}")
+        LOGGER.warning("DB cleanup error: %s", e)
 
 
 # ──── 清理与保留 ────
@@ -479,7 +566,7 @@ def _setup_logger(to_file: bool) -> None:
             fh.setFormatter(fmt)
             LOGGER.addHandler(fh)
         except Exception as e:
-            print(f"log file init failed: {e}")
+            LOGGER.warning("log file init failed: %s", e)
 
 
 def apply_log_to_file(enabled: bool) -> None:
@@ -614,7 +701,7 @@ def daily_counts(days: int = 30) -> list[tuple[int, int]]:
     if _conn is None:
         return []
     end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
+    start_dt = end_dt - timedelta(days=days - 1)
     since_ms = int(start_dt.timestamp() * 1000)
     rows = _conn.execute(
         "SELECT day_ts, count FROM agg_day WHERE day_ts >= ? ORDER BY day_ts",
@@ -639,7 +726,7 @@ def streak_days(days: int = 365) -> int:
     cursor = today
     while counts_by_day.get(cursor.date(), 0) > 0:
         streak += 1
-        cursor -= __import__("datetime").timedelta(days=1)
+        cursor -= timedelta(days=1)
     return streak
 
 
@@ -655,13 +742,81 @@ def daily_average(days: int = 7) -> int:
         )
         counts_by_day[dt.date()] = counts_by_day.get(dt.date(), 0) + c
     end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    start_dt = end_dt - __import__("datetime").timedelta(days=days - 1)
+    start_dt = end_dt - timedelta(days=days - 1)
     total = 0
     cursor = start_dt
     while cursor <= end_dt:
         total += counts_by_day.get(cursor.date(), 0)
-        cursor += __import__("datetime").timedelta(days=1)
+        cursor += timedelta(days=1)
     return total // days
+
+
+def daily_active_days(days: int = 30) -> int:
+    """过去 N 天中有按键记录的天数(0 即最近 N 天无活动)。"""
+    if _conn is None:
+        return 0
+    end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_dt = end_dt - timedelta(days=days - 1)
+    since_ms = int(start_dt.timestamp() * 1000)
+    row = _conn.execute(
+        "SELECT COUNT(*) FROM agg_day WHERE day_ts >= ? AND count > 0",
+        (since_ms,),
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def hourly_today() -> list:
+    """返回今日每小时 (hour_ts_ms, count) 按时间升序,不足 24 桶也按整小时排。"""
+    if _conn is None:
+        return []
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    since_ms = int(midnight.timestamp() * 1000)
+    rows = _conn.execute(
+        "SELECT hour_ts, count FROM agg_hour WHERE hour_ts >= ? ORDER BY hour_ts",
+        (since_ms,),
+    ).fetchall()
+    return rows
+
+
+def cpm_recent(minutes: int = 5) -> float:
+    """返回最近 minutes 分钟平均每分钟按键数(0 表示无数据)。"""
+    if _conn is None or minutes <= 0:
+        return 0.0
+    since = int((time.time() - minutes * 60) * 1000)
+    row = _conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM agg_minute WHERE minute_ts >= ?",
+        (since,),
+    ).fetchone()
+    total = float(row[0]) if row else 0.0
+    return total / minutes
+
+
+def mouse_total() -> int:
+    """累计鼠标点击总数。"""
+    if _conn is None:
+        return 0
+    row = _conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM agg_mouse_button_total"
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def mouse_by_button() -> list:
+    """鼠标各按钮点击数,返回 [(button, count), ...] 按 count 降序。"""
+    if _conn is None:
+        return []
+    return _conn.execute(
+        "SELECT button, count FROM agg_mouse_button_total ORDER BY count DESC"
+    ).fetchall()
+
+
+def key_type_distribution() -> list:
+    """按键类型分布,返回 [(type, count), ...] 按 count 降序。type ∈ letter/digit/symbol/modifier/function。"""
+    if _conn is None:
+        return []
+    return _conn.execute(
+        "SELECT type, count FROM agg_key_type_total ORDER BY count DESC"
+    ).fetchall()
 
 
 # ──── 备份与维护 ────
@@ -684,7 +839,7 @@ def backup(manual: bool = False) -> Optional[Path]:
         _prune_old_backups(keep_daily, keep_weekly)
         return dest
     except Exception as e:
-        print(f"Backup error: {e}")
+        LOGGER.warning("Backup error: %s", e)
         return None
 
 
@@ -740,7 +895,7 @@ def vacuum() -> bool:
         _conn.execute("VACUUM")
         return True
     except sqlite3.Error as e:
-        print(f"VACUUM error: {e}")
+        LOGGER.warning("VACUUM error: %s", e)
         return False
 
 
@@ -779,5 +934,5 @@ def health() -> dict:
             out["last_backup_ts"] = 0
         out["retention_days"] = _retention_days
     except Exception as e:
-        print(f"health error: {e}")
+        LOGGER.warning("health error: %s", e)
     return out

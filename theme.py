@@ -156,7 +156,8 @@ def apply_theme(name: str, root: "CTk | None" = None) -> Theme:
 def _recolor(widget, theme: Theme) -> None:
     """递归根据 widget 类型映射主题色。
 
-    仅覆盖明确支持的 CTk 控件类;其余保留默认。
+    仅覆盖明确支持的 CTk 控件类;其余保留默认。页面专属 widget 由页面
+    _do_apply_theme() 后置覆盖(优先级:页面 > 全局)。
     """
     cls_name = type(widget).__name__
     try:
@@ -164,6 +165,14 @@ def _recolor(widget, theme: Theme) -> None:
             widget.configure(fg_color=theme.colors.bg_secondary)
         elif cls_name == "CTkLabel":
             widget.configure(text_color=theme.colors.fg_primary)
+        elif cls_name == "CTkButton":
+            try:
+                widget.configure(
+                    border_color=theme.colors.border,
+                    hover_color=theme.colors.bg_tertiary,
+                )
+            except Exception:
+                pass
     except Exception:
         pass
     try:

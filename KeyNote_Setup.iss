@@ -1,15 +1,15 @@
-[Setup]
+﻿[Setup]
 AppName=KeyNote
 AppVersion=1.0.0
 AppPublisher=KeyNote Project
-DefaultDirName={autopf}\KeyNote
+DefaultDirName={localappdata}\KeyNote
 DefaultGroupName=KeyNote
 OutputDir=installer
 OutputBaseFilename=KeyNote_Setup
 Compression=lzma
 SolidCompression=yes
 UninstallDisplayIcon={app}\KeyNote.exe
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -34,6 +34,3 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\KeyNote.exe"; Description: "启动 KeyNote"; Flags: postinstall nowait skipifsilent shellexec
-
-[UninstallRun]
-Filename: "{app}\KeyNote.exe"; Parameters: "--uninstall"; Flags: runhidden

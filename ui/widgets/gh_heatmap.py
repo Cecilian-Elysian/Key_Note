@@ -17,7 +17,7 @@ _ROWS = 7
 _FIRST_DOW = 0
 
 _CELL_MIN = 6
-_CELL_MAX = 16
+_CELL_MAX = 17
 _CELL_SPACING = 2
 _WEEKDAY_LABEL_W = 30
 _MONTH_LABEL_H = 16
@@ -160,6 +160,13 @@ class GhHeatmapWidget(ctk.CTkFrame):
             self._canvas.configure(bg=c.bg_primary)
         except Exception:
             pass
+        if self._tooltip is not None:
+            try:
+                self._tooltip._frame.configure(bg=c.bg_tertiary, highlightbackground=c.border)
+                self._tooltip._date_lbl.configure(bg=c.bg_tertiary, fg=c.fg_primary)
+                self._tooltip._count_lbl.configure(bg=c.bg_tertiary, fg=c.fg_secondary)
+            except Exception:
+                pass
         self._render()
 
     @staticmethod

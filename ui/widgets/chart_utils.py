@@ -6,6 +6,12 @@ from typing import Optional, Tuple
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+import theme
+
+
+def _default_bg() -> str:
+    return theme.current().colors.bg_secondary
+
 
 def fit_canvas(fig: Figure, canvas: FigureCanvasTkAgg, margin: float = 0.2) -> bool:
     """将 figure 尺寸调整为 canvas 控件的实际像素尺寸，返回 True 表示尺寸有变化。"""
@@ -33,7 +39,7 @@ def _to_hex(color) -> str:
             return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
     except Exception:
         pass
-    return '#2b2b2b'
+    return _default_bg()
 
 
 def _sync_canvas_bg(fig: Figure, canvas: FigureCanvasTkAgg, fg_color=None) -> None:
@@ -64,7 +70,7 @@ def create_resizable_canvas(
     **pack_kwargs,
 ) -> Tuple[Figure, FigureCanvasTkAgg]:
     """创建随容器尺寸变化的 matplotlib 画布。"""
-    bg = fg_color or '#2b2b2b'
+    bg = fg_color or _default_bg()
     fig = Figure(figsize=initial_size, dpi=dpi, facecolor=bg)
     fig.patch.set_facecolor(bg)
     canvas = FigureCanvasTkAgg(fig, master=master)

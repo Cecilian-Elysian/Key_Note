@@ -4,6 +4,14 @@ Set-Location $ProjectRoot
 $DistDir = Join-Path $ProjectRoot "dist"
 $BackupDir = Join-Path $ProjectRoot "build\_data_bak"
 
+# Kill any running KeyNote.exe to release file lock on dist\keynote.db
+$Running = Get-Process -Name "KeyNote" -ErrorAction SilentlyContinue
+if ($Running) {
+    Write-Host "Killing running KeyNote.exe to release file lock..." -ForegroundColor Yellow
+    $Running | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+}
+
 if (Test-Path $DistDir) {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
     $DataFiles = @("keynote.db", "keynote.db-wal", "keynote.db-shm", "config.json")
@@ -16,7 +24,8 @@ if (Test-Path $DistDir) {
 
     Remove-Item -Recurse -Force $DistDir
 }
-if (Test-Path (Join-Path $ProjectRoot "build" "KeyNote")) { Remove-Item -Recurse -Force (Join-Path $ProjectRoot "build" "KeyNote") }
+$BuildKeyNoteDir = Join-Path $ProjectRoot "build\KeyNote"
+if (Test-Path $BuildKeyNoteDir) { Remove-Item -Recurse -Force $BuildKeyNoteDir }
 
 Write-Host "=== PyInstaller building ==="
 py -m PyInstaller --clean --noconfirm `
@@ -25,8 +34,6 @@ py -m PyInstaller --clean --noconfirm `
     --icon "icon.ico" `
     --add-data "icon.ico;." `
     --hidden-import pynput.keyboard._win32 `
-    --hidden-import pynput.mouse._win32 `
-    --hidden-import win32clipboard `
     key_note.py
 
 if ($LASTEXITCODE -ne 0) {

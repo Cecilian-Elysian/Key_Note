@@ -65,16 +65,9 @@ def _set_autostart(enable: bool) -> None:
 
 # ──── 设置窗口 ────
 def _open_settings_toplevel(master):
-    import customtkinter as ctk
-    from settings_panel import SettingsPanel
+    from settings_panel import open_or_focus
 
-    top = ctk.CTkToplevel(master)
-    top.title("KeyNote 设置")
-    top.geometry("400x480")
-    top.resizable(False, False)
-    panel = SettingsPanel(top, on_save_callback=master._on_settings_changed)
-    panel.pack(fill="both", expand=True)
-    panel.load_values(master.cfg)
+    open_or_focus(master, master.cfg, master._on_settings_changed)
 
 
 # ──── 菜单构建与启动 ────
@@ -116,6 +109,40 @@ def start(window: "App") -> Icon:
         if icon_ref["icon"]:
             icon_ref["icon"].stop()
 
+    def _apply_theme(theme_name: str):
+        def _h(_icon, _item):
+            try:
+                cc = config.load()
+                if str(cc.get("theme", "dark")) == theme_name:
+                    return
+                cc["theme"] = theme_name
+                config.save(cc)
+                try:
+                    window.after(0, lambda: window._on_settings_changed(cc))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            if icon_ref["icon"]:
+                try:
+                    icon_ref["icon"].update_menu()
+                except Exception:
+                    pass
+        return _h
+
+    def _theme_label(name: str):
+        def _l(_text):
+            mark = "✓ " if str(_current_theme()).lower() == name.lower() else "  "
+            zh = "深色" if name == "dark" else "浅色"
+            return f"{mark}{zh}"
+        return _l
+
+    def _current_theme() -> str:
+        try:
+            return str(config.load().get("theme", "dark"))
+        except Exception:
+            return "dark"
+
     def _make_menu():
         c = config.load()
         h = db.health()
@@ -125,7 +152,7 @@ def start(window: "App") -> Icon:
             last_bk = datetime.fromtimestamp(last_backup_ts).strftime("%m-%d %H:%M")
         else:
             last_bk = "从未"
-        current_retention = int(c.get("db_retention_days", 7))
+        current_retention = int(c.get("db_retention_days", 365))
 
         def _retention_label(days: int) -> str:
             mark = "✓ " if current_retention == days else "  "
@@ -261,6 +288,13 @@ def start(window: "App") -> Icon:
                 _toggle_pause,
             ),
             MenuItem("⚙ 设置...", _open_settings),
+            MenuItem(
+                "🎨 主题",
+                Menu(
+                    MenuItem(_theme_label("dark"), _apply_theme("dark")),
+                    MenuItem(_theme_label("light"), _apply_theme("light")),
+                ),
+            ),
             Menu.SEPARATOR,
             MenuItem("📈 实时统计", realtime_submenu),
             MenuItem("🕐 最近活动", recent_submenu),

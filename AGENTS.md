@@ -5,9 +5,12 @@
 - **Windows 单机工具** — pynput 键盘监听 + SQLite 持久化 + customtkinter UI + pystray 托盘
 
 ## 架构约束
-- 主窗口硬编码 `450×500`,不响应式
-- 单页仪表盘(无页面导航),`DashboardPage` 直接 pack 进 `window.body`
-- 设置面板通过托盘菜单 `⚙ → SettingsPanel Toplevel` 打开,而非页面导航
+- 主窗口硬编码 `400×550`,不响应式
+- 2 页(统计 / 键盘),底部 tab bar 切换,默认 Page 1 = 统计
+  - Page 1 `OverviewPage`(`dashboard.py`):segmented 主卡 + 趋势图 + WPM + GH 年度
+  - Page 2 `KeyboardPage`(`keyboard.py`):3 紧凑副卡 + 7×24 + QWERTY 键盘热力图
+  - 切换走 `App._switch_page(name)`,auto-refresh 只刷新当前页
+- 设置面板通过主窗口顶部 ⚙ 按钮或托盘菜单 `⚙ → SettingsPanel Toplevel` 打开(两入口共用 `settings_panel.open_or_focus()`),而非页面导航
 
 ## 代码风格
 - **声明式 > 手写**: `settings_panel.py` 用 `FieldSpec` + `GROUPS` 描述控件,扩字段只加一行
@@ -32,22 +35,23 @@
 | `config.py` | JSON 持久化 + 默认键字典 |
 | `settings_panel.py` | FieldSpec 声明式设置面板 |
 
-### 3. 键盘监听
+### 3. 输入监听(键盘 + 鼠标)
 | 文件 | 职责 |
 |---|---|
-| `listener.py` | pynput 全局监听 + 暂停/恢复 |
+| `listener.py` | pynput 全局键盘+鼠标监听 + 按键分类(letter/digit/symbol/modifier/function)+ 暂停/恢复 |
 
 ### 4. 数据持久化
 | 文件 | 职责 |
 |---|---|
-| `db.py` | SQLite 异步写入 + 聚合 + 迁移(v1~v4) + 备份/清理/CSV |
+| `db.py` | SQLite 异步写入 + 聚合(键盘/鼠标/按键类型)+ 迁移(v1~v6) + 备份/清理/CSV |
 
 ### 5. UI 窗口
 | 文件 | 职责 |
 |---|---|
-| `window.py` | 主窗口 UI + 自动刷新 + 空闲检测 + 设置回调 |
+| `window.py` | 主窗口 UI(2 页 + tab bar)+ 自动刷新 + 闲置检测 + 设置回调 |
 | `ui/pages/base.py` | BasePage 基类 |
-| `ui/pages/dashboard.py` | 唯一激活页面:统计卡 + 趋势图 + 热力图 |
+| `ui/pages/dashboard.py` | OverviewPage(Page 1):segmented 主卡 + 趋势图 + WPM + GH 热力图 |
+| `ui/pages/keyboard.py` | KeyboardPage(Page 2):3 副卡 + 7×24 + QWERTY 键盘热力图 |
 
 ### 6. 主题系统
 | 文件 | 职责 |
@@ -62,8 +66,8 @@
 ### 8. 图表组件
 | 文件 | 职责 |
 |---|---|
-| `ui/widgets/gh_heatmap.py` | GitHub 风格热力图(Canvas 渲染) |
-| `ui/widgets/chart_utils.py` | matplotlib 画布工厂(供 dashboard 趋势图复用) |
+| `ui/widgets/gh_heatmap.py` | GitHub 风格热力图(Canvas 渲染,Page 1 底部年度图) |
+| `ui/widgets/chart_utils.py` | matplotlib 画布工厂(供 Page 1 趋势图复用) |
 
 ### 9. 构建与部署
 | 文件 | 职责 |
@@ -73,7 +77,8 @@
 | `KeyNote.spec` | PyInstaller spec |
 
 ## 死代码(暂不动)
-`ui/pages/{heatmap,rate,top_keys,settings}.py` — 4 个占位页面,后续可恢复。
+`ui/pages/{heatmap,top_keys,settings}.py` — 3 个占位页面,后续可恢复。
+`ui/pages/keyboard.py` 是原 `rate.py` 改名 + 内容重写后激活为 Page 2,已不属于死代码。
 `ui/widgets/chart_utils.py` 已从死代码复活(供 dashboard 趋势图复用)。
 
 ## 硬约束(违反即不收)
@@ -94,9 +99,9 @@
 | `settings_panel.py` | 加新字段 → GROUPS 加一行 + config.py 加默认值 + 对应模块加处理逻辑 |
 | `dashboard.py` | 新增图表类型 / 布局微调 / 数据维度扩展 |
 | `theme.py` | **不动**—dark/light 两套已足够 |
-| `window.py` | 加新回调分支处理新配置 |
+| `window.py` | 加新回调分支处理新配置;扩展第 3 页 |
 | `tray.py` | 加新菜单项 / 托盘交互优化 |
-| `listener.py` | **不动**—职责单一 |
+| `listener.py` | 加新事件类型(如快捷键组合统计)/ 修饰键追踪 |
 | `db.py` | 新增聚合查询 / 新迁移版本 |
 
 ## 惯用模式

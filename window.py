@@ -1,4 +1,4 @@
-"""主窗口模块,450×500 固定尺寸仪表盘布局,包含顶部状态栏、DashboardPage 仪表盘、自动刷新定时器、闲置检测暂停、主题/字体切换、设置变更回调处理"""
+"""主窗口模块,400×550 固定尺寸 2 页布局(统计 / 键盘)+ 底部 tab bar 切换 + 顶部状态栏 + 自动刷新 + 闲置检测 + 设置回调"""
 from __future__ import annotations
 
 # ──── 字体适配 ────
@@ -20,7 +20,6 @@ try:
 except Exception:
     _tray = None
 
-import math
 from PIL import Image, ImageDraw
 
 CJK_FONT = "Microsoft YaHei"
@@ -74,6 +73,9 @@ def _draw_gear_icon(colors) -> Image.Image:
 
 # ──── 主窗口 ────
 class App(ctk.CTk):
+    PAGE_OVERVIEW = "overview"
+    PAGE_KEYBOARD = "keyboard"
+
     def __init__(self):
         super().__init__()
         self.cfg = config.load()
@@ -104,6 +106,12 @@ class App(ctk.CTk):
         self._refresh_after_id: Optional[str] = None
         self._last_keypress_mono: float = 0.0
         self._was_paused_by_idle: bool = False
+
+        self._pages: dict = {}
+        self._current_page_name: str = ""
+        self._current_page = None
+        self._nav_buttons: dict = {}
+
         try:
             listener.register_activity_callback(self.on_keypress)
         except Exception:
@@ -111,10 +119,21 @@ class App(ctk.CTk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
+        self._switch_page(self.PAGE_OVERVIEW)
         self.refresh()
         self._schedule_auto_refresh()
         self.update_idletasks()
         self._hide_from_taskbar()
+        self._apply_mouse_listener_setting()
+
+    def _apply_mouse_listener_setting(self) -> None:
+        """启动时按 config 应用鼠标监听状态。"""
+        try:
+            listener.apply_mouse_listener_enabled(
+                bool(self.cfg.get("mouse_listener_enabled", True))
+            )
+        except Exception:
+            pass
 
     def _pick_app_font(self) -> Optional[str]:
         candidate = str(self.cfg.get("font_family", "Microsoft YaHei UI"))
@@ -138,22 +157,22 @@ class App(ctk.CTk):
                     return
                 except Exception:
                     pass
-        self.geometry("450x500")
-        self.minsize(450, 500)
-        self.maxsize(450, 500)
+        self.geometry("400x550")
+        self.minsize(400, 550)
+        self.maxsize(400, 550)
 
     def _clamp_window_size(self) -> None:
-        """将窗口尺寸锁定到 450×500，保留原位置。"""
+        """将窗口尺寸锁定到 400×550,保留原位置。"""
         try:
-            self.maxsize(450, 500)
-            self.minsize(450, 500)
+            self.maxsize(400, 550)
+            self.minsize(400, 550)
             cur = self.geometry()
             plus_idx = cur.find("+")
             if plus_idx < 0:
-                self.geometry("450x500")
+                self.geometry("400x550")
                 return
             rest = cur[plus_idx:]
-            self.geometry(f"450x500{rest}")
+            self.geometry(f"400x550{rest}")
         except Exception:
             pass
 
@@ -178,23 +197,31 @@ class App(ctk.CTk):
         except Exception:
             pass
 
-    # ──── UI 构建 ────
+    # ──── UI 构建(grid 三段) ────
     def _build_ui(self) -> None:
         c = theme.current().colors
         self.configure(fg_color=c.bg_primary)
 
+        self.grid_rowconfigure(0, minsize=28)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, minsize=46)
+        self.grid_columnconfigure(0, weight=1)
+
+        # row 0: 顶栏
         top = ctk.CTkFrame(self, height=28, fg_color=c.bg_secondary)
-        top.pack(fill="x")
+        self._top = top
+        top.grid(row=0, column=0, sticky="ew")
         top.pack_propagate(False)
 
         self.status_lbl = ctk.CTkLabel(
             top, text="●记录中", text_color=c.success, font=("", 11, "bold")
         )
         self.status_lbl.pack(side="left", padx=8)
-        self.today_lbl = ctk.CTkLabel(top, text="今日: 0", text_color=c.fg_primary, font=("", 10))
+        self.today_lbl = ctk.CTkLabel(
+            top, text="今日: 0", text_color=c.fg_primary, font=("", 10)
+        )
         self.today_lbl.pack(side="left", padx=6)
 
-        # 右侧图标按钮
         right = ctk.CTkFrame(top, fg_color="transparent")
         right.pack(side="right", padx=4)
 
@@ -232,37 +259,93 @@ class App(ctk.CTk):
 
         self._update_pin_btn()
 
-        body = ctk.CTkFrame(self, fg_color=c.bg_primary)
-        body.pack(fill="both", expand=True)
+        # row 1: body(当前页面)
+        self._body = ctk.CTkFrame(self, fg_color=c.bg_primary)
+        self._body.grid(row=1, column=0, sticky="nsew")
 
-        from ui.pages.dashboard import DashboardPage
+        from ui.pages.dashboard import OverviewPage
+        from ui.pages.keyboard import KeyboardPage
 
-        self._dashboard = DashboardPage(body, self)
-        self._dashboard.pack(fill="both", expand=True)
-        self._dashboard.ensure_built()
+        self._pages[self.PAGE_OVERVIEW] = OverviewPage(self._body, self)
+        self._pages[self.PAGE_KEYBOARD] = KeyboardPage(self._body, self)
 
-    def _toggle(self):
-        if listener.is_paused():
-            listener.resume()
-        else:
-            listener.pause()
-        self.refresh_status()
+        # row 2: nav bar
+        nav = ctk.CTkFrame(self, height=46, fg_color=c.bg_secondary)
+        self._nav = nav
+        nav.grid(row=2, column=0, sticky="ew")
+        nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")
 
+        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "键盘")]
+        for col, (name, label) in enumerate(tabs):
+            btn = ctk.CTkButton(
+                nav, text=label,
+                fg_color="transparent",
+                text_color=c.fg_muted,
+                hover_color=c.bg_tertiary,
+                font=("", 12, "bold"),
+                corner_radius=0,
+                border_width=0,
+                border_color=c.border,
+                command=lambda n=name: self._switch_page(n),
+            )
+            btn.grid(row=0, column=col, padx=0, pady=0, sticky="nsew")
+            self._nav_buttons[name] = btn
+
+    # ──── 页面切换 ────
+    def _switch_page(self, name: str) -> None:
+        if not name or name not in self._pages:
+            return
+        if name == self._current_page_name and self._current_page is not None:
+            return
+        if self._current_page is not None:
+            try:
+                self._current_page.pack_forget()
+            except Exception:
+                pass
+        page = self._pages[name]
+        try:
+            page.ensure_built()
+            page.pack(in_=self._body, fill="both", expand=True)
+            page.refresh()
+        except Exception:
+            pass
+        self._current_page = page
+        self._current_page_name = name
+        self._update_nav_active(name)
+
+    def _update_nav_active(self, name: str) -> None:
+        c = theme.current().colors
+        for n, btn in self._nav_buttons.items():
+            is_active = (n == name)
+            try:
+                btn.configure(
+                    text_color=(c.accent if is_active else c.fg_muted),
+                    border_width=(2 if is_active else 0),
+                    border_color=c.accent,
+                )
+            except Exception:
+                pass
+
+    def current_page_name(self) -> str:
+        return self._current_page_name
+
+    # ──── 状态栏 ────
     def refresh_status(self) -> None:
         c = theme.current().colors
         if listener.is_paused():
             self.status_lbl.configure(text="⏸ 已暂停", text_color=c.warning)
         else:
             self.status_lbl.configure(text="● 记录中", text_color=c.success)
-        self.today_lbl.configure(text=f"今日: {db.count_today():,}")
+        self.today_lbl.configure(text=f"今日: {db.count_today():,}", text_color=c.fg_primary)
 
-    # ──── 刷新与闲置检测 ────
+    # ──── 刷新 / 自动刷新 ────
     def refresh(self) -> None:
         self.refresh_status()
-        try:
-            self._dashboard.refresh()
-        except Exception:
-            pass
+        if self._current_page is not None:
+            try:
+                self._current_page.refresh()
+            except Exception:
+                pass
 
     def _auto_refresh(self) -> None:
         self.refresh()
@@ -376,15 +459,9 @@ class App(ctk.CTk):
         self._update_pin_btn()
 
     def _open_settings(self) -> None:
-        from settings_panel import SettingsPanel
+        from settings_panel import open_or_focus
 
-        top = ctk.CTkToplevel(self)
-        top.title("KeyNote 设置")
-        top.geometry("400x480")
-        top.resizable(False, False)
-        panel = SettingsPanel(top, on_save_callback=self._on_settings_changed)
-        panel.pack(fill="both", expand=True)
-        panel.load_values(self.cfg)
+        open_or_focus(self, self.cfg, self._on_settings_changed)
 
     # ──── 设置变更处理 ────
     def _on_settings_changed(self, new_cfg: dict) -> None:
@@ -425,6 +502,15 @@ class App(ctk.CTk):
                     _tray.set_visible(not bool(self.cfg["hide_tray_icon"]))
             except Exception:
                 pass
+        if bool(self.cfg.get("mouse_listener_enabled", True)) != bool(
+            old.get("mouse_listener_enabled", True)
+        ):
+            try:
+                listener.apply_mouse_listener_enabled(
+                    bool(self.cfg.get("mouse_listener_enabled", True))
+                )
+            except Exception:
+                pass
         if int(self.cfg.get("refresh_interval_sec", 5)) != int(
             old.get("refresh_interval_sec", 5)
         ) or bool(self.cfg.get("chart_auto_refresh", True)) != bool(
@@ -446,13 +532,54 @@ class App(ctk.CTk):
         self.refresh()
 
     def _apply_theme_change(self, theme_name: str) -> None:
-        theme.apply_theme(theme_name)
+        theme.apply_theme(theme_name, root=self)
+        c = theme.current().colors
         try:
-            self._dashboard.apply_theme()
+            self.configure(fg_color=c.bg_primary)
+            if hasattr(self, "_body") and self._body is not None:
+                self._body.configure(fg_color=c.bg_primary)
+            if hasattr(self, "_top") and self._top is not None:
+                self._top.configure(fg_color=c.bg_secondary)
+            if hasattr(self, "_nav") and self._nav is not None:
+                self._nav.configure(fg_color=c.bg_secondary)
+        except Exception:
+            pass
+        for page in self._pages.values():
+            try:
+                page.apply_theme()
+            except Exception:
+                pass
+        try:
+            self._redraw_icons()
         except Exception:
             pass
         try:
-            self._redraw_icons()
+            self._update_pin_btn()
+        except Exception:
+            pass
+        try:
+            self._update_nav_active(self._current_page_name or self.PAGE_OVERVIEW)
+        except Exception:
+            pass
+        try:
+            panel = getattr(self, "_settings_panel", None)
+            if panel is not None:
+                try:
+                    if panel.winfo_exists():
+                        panel.apply_theme()
+                except Exception:
+                    pass
+            else:
+                win = getattr(self, "_settings_win", None)
+                if win is not None:
+                    try:
+                        if win.winfo_exists():
+                            for child in win.winfo_children():
+                                if isinstance(child, ctk.CTkScrollableFrame) and hasattr(child, "apply_theme"):
+                                    child.apply_theme()
+                                    break
+                    except Exception:
+                        pass
         except Exception:
             pass
         self.refresh()
