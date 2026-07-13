@@ -1,4 +1,4 @@
-"""键盘页(Page 2):3 张紧凑副卡 + 7×24 小时活跃度热力图 + QWERTY 键盘热力图"""
+"""后台页(Page 2):3 张紧凑副卡 + 7×24 小时活跃度热力图 + QWERTY 键盘热力图"""
 from __future__ import annotations
 
 import math
@@ -41,7 +41,7 @@ _KEY_ROWS = [
     ["z", "x", "c", "v", "b", "n", "m"],
 ]
 _ROW_OFFSETS = [0.0, 0.5, 0.75, 1.25]
-_KEY_SPACER_W = 6
+_KEY_SPACER_W = 5
 
 
 # ──── 颜色工具 ────
@@ -95,7 +95,7 @@ class KeyboardPage(BasePage):
         )
         self._h_summary_lbl.pack(anchor="e", padx=10)
         self._h_canvas = tk.Canvas(
-            h_card, bg=p["card_bg"], highlightthickness=0, height=130
+            h_card, bg=p["card_bg"], highlightthickness=0, height=150
         )
         self._h_canvas.pack(fill="x", padx=10, pady=(2, 8))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
@@ -116,7 +116,7 @@ class KeyboardPage(BasePage):
         self._kb_legend.pack(side="right")
 
         self._kb_canvas = tk.Canvas(
-            kb_card, bg=p["card_bg"], highlightthickness=0, height=160
+            kb_card, bg=p["card_bg"], highlightthickness=0, height=180
         )
         self._kb_canvas.pack(fill="x", padx=10, pady=(0, 10))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
@@ -157,16 +157,16 @@ class KeyboardPage(BasePage):
 
         peak = int(grid.max()) if grid.size else 0
 
-        margin_x = 28
-        margin_top = 14
-        margin_bottom = 16
-        usable_w = max(40, w - margin_x - 6)
+        margin_x = 24
+        margin_top = 12
+        margin_bottom = 10
+        usable_w = max(40, w - margin_x - 4)
         usable_h = max(40, h - margin_top - margin_bottom)
         cols = 24
         rows = 7
-        gap = 2
-        cell_w = max(6, min(20, (usable_w - (cols - 1) * gap) / cols))
-        cell_h = max(8, min(16, (usable_h - (rows - 1) * gap) / rows))
+        gap = 1
+        cell_w = max(10, min(22, (usable_w - (cols - 1) * gap) / cols))
+        cell_h = max(10, min(20, (usable_h - (rows - 1) * gap) / rows))
         grid_w = cols * cell_w + (cols - 1) * gap
         ox = margin_x + max(0, (usable_w - grid_w) / 2)
         oy = margin_top
@@ -218,10 +218,10 @@ class KeyboardPage(BasePage):
         if w < 50:
             return
 
-        gap = 4
+        gap = 5
         max_cols = max(len(r) for r in _KEY_ROWS)
-        cell_w = max(24, (w - (max_cols - 1) * gap - 8) // max_cols)
-        cell_h = 28
+        cell_w = max(30, (w - (max_cols - 1) * gap - 8) // max_cols)
+        cell_h = 32
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
 

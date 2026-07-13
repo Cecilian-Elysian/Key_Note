@@ -1,4 +1,4 @@
-"""主窗口模块,400×550 固定尺寸 2 页布局(统计 / 键盘)+ 底部 tab bar 切换 + 顶部状态栏 + 自动刷新 + 闲置检测 + 设置回调"""
+"""主窗口模块,400×550 固定尺寸 2 页布局(统计 / 后台)+ 底部 tab bar 切换 + 顶部状态栏 + 自动刷新 + 闲置检测 + 设置回调"""
 from __future__ import annotations
 
 # ──── 字体适配 ────
@@ -275,7 +275,7 @@ class App(ctk.CTk):
         nav.grid(row=2, column=0, sticky="ew")
         nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")
 
-        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "键盘")]
+        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "后台")] 
         for col, (name, label) in enumerate(tabs):
             btn = ctk.CTkButton(
                 nav, text=label,
