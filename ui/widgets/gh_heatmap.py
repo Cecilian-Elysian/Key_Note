@@ -167,7 +167,18 @@ class GhHeatmapWidget(ctk.CTkFrame):
                 self._tooltip._count_lbl.configure(bg=c.bg_tertiary, fg=c.fg_secondary)
             except Exception:
                 pass
-        self._render()
+        try:
+            self.refresh()
+        except Exception:
+            try:
+                self._render()
+            except Exception:
+                pass
+        try:
+            self._canvas.update_idletasks()
+            self._canvas.update()
+        except Exception:
+            pass
 
     @staticmethod
     def _calc_percentiles(non_zero_sorted):

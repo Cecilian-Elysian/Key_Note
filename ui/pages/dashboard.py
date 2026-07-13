@@ -7,41 +7,26 @@ import customtkinter as ctk
 import numpy as np
 
 import db
-import theme
 from ui.pages.base import BasePage
 from ui.widgets.chart_utils import create_resizable_canvas, _sync_canvas_bg
 
 
-# ──── 页面专属调色板(与 keyboard.py 解耦,跟主题走) ────
-_PALETTES: dict[str, dict[str, str]] = {
-    "dark": {
-        "bg":          "#0B1120",
-        "card_bg":     "#1A1F2C",
-        "card_bg2":    "#131A26",
-        "accent":      "#FF5722",
-        "accent_glow": "#FF7043",
-        "fg_primary":  "#E2E8F0",
-        "fg_muted":    "#64748B",
-        "grid_line":   "#2D3748",
-        "border":      "#2D3748",
-    },
-    "light": {
-        "bg":          "#F8FAFC",
-        "card_bg":     "#FFFFFF",
-        "card_bg2":    "#F1F5F9",
-        "accent":      "#E65100",
-        "accent_glow": "#FF8A65",
-        "fg_primary":  "#1E293B",
-        "fg_muted":    "#94A3B8",
-        "grid_line":   "#CBD5E1",
-        "border":      "#CBD5E1",
-    },
+# ──── 页面专属调色板(与 keyboard.py 解耦) ────
+_PALETTE: dict[str, str] = {
+    "bg":          "#0B1120",
+    "card_bg":     "#1A1F2C",
+    "card_bg2":    "#131A26",
+    "accent":      "#FF5722",
+    "accent_glow": "#FF7043",
+    "fg_primary":  "#E2E8F0",
+    "fg_muted":    "#64748B",
+    "grid_line":   "#2D3748",
+    "border":      "#2D3748",
 }
 
 
 def _palette() -> dict[str, str]:
-    name = theme.current().name
-    return _PALETTES.get(name, _PALETTES["dark"])
+    return _PALETTE
 
 
 class OverviewPage(BasePage):
@@ -263,10 +248,12 @@ class OverviewPage(BasePage):
         except Exception:
             pass
         try:
-            _sync_canvas_bg(self._trend_fig, self._trend_canvas, fg_color=p["card_bg"])
-            self._trend_ax.set_facecolor(p["card_bg"])
+            self._trend_fig.clear()
+            self._trend_ax = self._trend_fig.add_subplot(111)
             self._trend_fig.patch.set_facecolor(p["card_bg"])
+            self._trend_fig.patch.set_alpha(1.0)
             self._trend_ax.set_facecolor(p["card_bg"])
+            _sync_canvas_bg(self._trend_fig, self._trend_canvas, fg_color=p["card_bg"])
             if self._stat_idx == 2:
                 self._draw_trend(db.daily_counts(30), self._STAT_KEYS[self._stat_idx])
             elif self._stat_idx == 1:
@@ -274,6 +261,18 @@ class OverviewPage(BasePage):
             else:
                 self._draw_trend(db.hourly_today(), self._STAT_KEYS[self._stat_idx])
             self._trend_canvas.draw()
+            try:
+                self._trend_canvas.flush_events()
+            except Exception:
+                pass
+            try:
+                self._trend_canvas.get_tk_widget().update_idletasks()
+            except Exception:
+                pass
+            try:
+                self._trend_canvas.get_tk_widget().update()
+            except Exception:
+                pass
         except Exception:
             pass
         try:

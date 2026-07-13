@@ -8,48 +8,29 @@ from datetime import datetime, timedelta
 import customtkinter as ctk
 
 import db
-import theme
 from ui.pages.base import BasePage
 
 
-# ──── 页面专属调色板(与 dashboard.py 解耦,跟主题走) ────
-_PALETTES: dict[str, dict[str, str]] = {
-    "dark": {
-        "bg":          "#0B1120",
-        "card_bg":     "#1A1F2C",
-        "accent":      "#FF5722",
-        "fg_primary":  "#E2E8F0",
-        "fg_muted":    "#64748B",
-        "key_border":  "#2D3748",
-        "key_empty":   "#1E293B",
-        "grid_line":   "#2D3748",
-        "h_empty":     "#2b2b2b",
-        "h_l1":        "#0e4429",
-        "h_l2":        "#006d32",
-        "h_l3":        "#26a641",
-        "h_l4":        "#39d353",
-    },
-    "light": {
-        "bg":          "#F8FAFC",
-        "card_bg":     "#FFFFFF",
-        "accent":      "#E65100",
-        "fg_primary":  "#1E293B",
-        "fg_muted":    "#94A3B8",
-        "key_border":  "#CBD5E1",
-        "key_empty":   "#E2E8F0",
-        "grid_line":   "#CBD5E1",
-        "h_empty":     "#ebedf0",
-        "h_l1":        "#9be9a8",
-        "h_l2":        "#40c463",
-        "h_l3":        "#30a14e",
-        "h_l4":        "#216e39",
-    },
+# ──── 页面专属调色板(与 dashboard.py 解耦) ────
+_PALETTE: dict[str, str] = {
+    "bg":          "#0B1120",
+    "card_bg":     "#1A1F2C",
+    "accent":      "#FF5722",
+    "fg_primary":  "#E2E8F0",
+    "fg_muted":    "#64748B",
+    "key_border":  "#2D3748",
+    "key_empty":   "#1E293B",
+    "grid_line":   "#2D3748",
+    "h_empty":     "#2b2b2b",
+    "h_l1":        "#0e4429",
+    "h_l2":        "#006d32",
+    "h_l3":        "#26a641",
+    "h_l4":        "#39d353",
 }
 
 
 def _palette() -> dict[str, str]:
-    name = theme.current().name
-    return _PALETTES.get(name, _PALETTES["dark"])
+    return _PALETTE
 
 
 # ──── QWERTY 键盘布局 ────

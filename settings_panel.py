@@ -13,7 +13,7 @@ import config
 import theme
 
 
-# ──── 主题感知颜色(跟主题走,不写死) ────
+# ──── 主题颜色(从 theme 取,不写死) ────
 _TOGGLE_ACTIVE = "#2196F3"
 _HELP_ICON = "#FFB300"
 
@@ -35,7 +35,6 @@ def _tip_fg() -> str:
 
 
 _REQUIRES_RESTART_KEYS = {
-    "theme",
     "start_minimized", "listener_enabled", "silent_start",
     "mouse_listener_enabled",
     "backup_dir",
@@ -278,7 +277,6 @@ GROUPS: list[tuple[str, list[FieldSpec]]] = [
         FieldSpec("switch", "mouse_listener_enabled", "记录鼠标点击"),
     ]),
     ("界面", [
-        FieldSpec("combo", "theme", "主题", choices=["dark", "light"]),
         FieldSpec("slider_float", "window_alpha", "窗口透明度 (0.6 ~ 1.0)", lo=0.6, hi=1.0, step=0.05),
         FieldSpec("switch", "remember_window_pos", "记住窗口位置"),
     ]),
@@ -370,7 +368,7 @@ class SettingsPanel(ctk.CTkScrollableFrame):
             self._render_field(frame, field_spec)
 
     def apply_theme(self) -> None:
-        """主题切换时重染面板所有 widget。"""
+        """重染面板所有 widget 颜色(保留接口,当前无主题切换,启动时调用一次)。"""
         c = theme.current().colors
         try:
             self.configure(fg_color=_panel_bg())

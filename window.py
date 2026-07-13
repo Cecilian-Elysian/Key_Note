@@ -79,7 +79,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.cfg = config.load()
-        theme.apply_theme(self.cfg.get("theme", "dark"))
+        theme.apply_theme()
 
         font = self._pick_app_font()
         if font:
@@ -471,9 +471,6 @@ class App(ctk.CTk):
             self.attributes("-alpha", float(self.cfg.get("window_alpha", 1.0)))
         except Exception:
             pass
-        theme_name = str(self.cfg.get("theme", "dark"))
-        if theme_name != str(old.get("theme", "dark")):
-            self._apply_theme_change(theme_name)
         if str(self.cfg.get("font_family", "")) != str(old.get("font_family", "")):
             self._apply_font_change()
         try:
@@ -529,59 +526,6 @@ class App(ctk.CTk):
             except Exception:
                 pass
             self._update_pin_btn()
-        self.refresh()
-
-    def _apply_theme_change(self, theme_name: str) -> None:
-        theme.apply_theme(theme_name, root=self)
-        c = theme.current().colors
-        try:
-            self.configure(fg_color=c.bg_primary)
-            if hasattr(self, "_body") and self._body is not None:
-                self._body.configure(fg_color=c.bg_primary)
-            if hasattr(self, "_top") and self._top is not None:
-                self._top.configure(fg_color=c.bg_secondary)
-            if hasattr(self, "_nav") and self._nav is not None:
-                self._nav.configure(fg_color=c.bg_secondary)
-        except Exception:
-            pass
-        for page in self._pages.values():
-            try:
-                page.apply_theme()
-            except Exception:
-                pass
-        try:
-            self._redraw_icons()
-        except Exception:
-            pass
-        try:
-            self._update_pin_btn()
-        except Exception:
-            pass
-        try:
-            self._update_nav_active(self._current_page_name or self.PAGE_OVERVIEW)
-        except Exception:
-            pass
-        try:
-            panel = getattr(self, "_settings_panel", None)
-            if panel is not None:
-                try:
-                    if panel.winfo_exists():
-                        panel.apply_theme()
-                except Exception:
-                    pass
-            else:
-                win = getattr(self, "_settings_win", None)
-                if win is not None:
-                    try:
-                        if win.winfo_exists():
-                            for child in win.winfo_children():
-                                if isinstance(child, ctk.CTkScrollableFrame) and hasattr(child, "apply_theme"):
-                                    child.apply_theme()
-                                    break
-                    except Exception:
-                        pass
-        except Exception:
-            pass
         self.refresh()
 
     def _apply_font_change(self) -> None:
