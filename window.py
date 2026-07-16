@@ -125,6 +125,7 @@ class App(ctk.CTk):
         self.update_idletasks()
         self._hide_from_taskbar()
         self._apply_mouse_listener_setting()
+        self._set_window_icon()
 
     def _apply_mouse_listener_setting(self) -> None:
         """启动时按 config 应用鼠标监听状态。"""
@@ -194,6 +195,12 @@ class App(ctk.CTk):
                 hwnd, 0, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
             )
+        except Exception:
+            pass
+
+    def _set_window_icon(self) -> None:
+        try:
+            self.iconbitmap(str(config.icon_path()))
         except Exception:
             pass
 

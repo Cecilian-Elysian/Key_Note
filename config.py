@@ -28,6 +28,13 @@ def exe_dir() -> Path:
     return p
 
 
+def icon_path() -> Path:
+    """返回 icon.ico 的运行时路径。开发模式 = 项目根目录,打包后 = sys._MEIPASS/。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "icon.ico"
+    return Path(__file__).parent / "icon.ico"
+
+
 CONFIG_PATH = exe_dir() / "config.json"
 
 DEFAULTS = {

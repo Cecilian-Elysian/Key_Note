@@ -8,7 +8,7 @@ import winreg
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from PIL import Image, ImageDraw
+from PIL import Image
 from pystray import Icon, Menu, MenuItem
 
 import config
@@ -26,18 +26,33 @@ _RETENTION_OPTIONS = [("永久", 0), ("7 天", 7), ("180 天", 180), ("365 天",
 _icon: "Icon | None" = None
 _window: "App | None" = None
 
+_TINT = {
+    "active": (30, 144, 255),
+    "paused": (120, 120, 120),
+    "idle":   (255, 193, 7),
+}
+_TINT_ALPHA = 0.3
+_TRAY_SIZE = 64
+_base_icon_cache: "Image.Image | None" = None
+
+
+def _load_base_icon() -> Image.Image:
+    """加载并缓存 icon.ico 为 64×64 RGBA 底图,供三态叠加使用。"""
+    global _base_icon_cache
+    if _base_icon_cache is not None:
+        return _base_icon_cache
+    img = Image.open(str(config.icon_path())).convert("RGBA")
+    img = img.resize((_TRAY_SIZE, _TRAY_SIZE), Image.LANCZOS)
+    _base_icon_cache = img
+    return img
+
 
 def _icon_image(state: str = "active") -> Image.Image:
-    palette = {
-        "active": ((30, 144, 255), (255, 255, 255)),
-        "paused": ((120, 120, 120), (200, 200, 200)),
-        "idle":   ((255, 193, 7),   (255, 255, 255)),
-    }
-    bg, fg = palette.get(state, palette["active"])
-    img = Image.new("RGB", (64, 64), bg)
-    d = ImageDraw.Draw(img)
-    d.rectangle([12, 20, 52, 44], fill=fg)
-    return img
+    base = _load_base_icon()
+    color = _TINT.get(state, _TINT["active"])
+    overlay = Image.new("RGBA", base.size, (*color, 0))
+    overlay.putalpha(base.split()[3])
+    return Image.blend(base, overlay, _TINT_ALPHA)
 
 
 # ──── 开机自启 ────
@@ -265,7 +280,33 @@ def start(window: "App") -> Icon:
     icon = Icon(APP_NAME, _icon_image(), "KeyNote 键盘记录", _make_menu())
     icon_ref["icon"] = icon
     _icon = icon
-    threading.Thread(target=icon.run, daemon=True).start()
+
+    def _icon_run_with_log():
+        try:
+            icon.run()
+        except Exception as e:
+            try:
+                import sys
+                import traceback
+                from pathlib import Path
+                sys.stderr.write(f"[tray] icon.run failed: {e}\n")
+                sys.stderr.flush()
+                try:
+                    import config
+                    log_path = Path(config.exe_dir()) / "keynote.crash.log"
+                    log_path.parent.mkdir(parents=True, exist_ok=True)
+                    import time
+                    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[tray.icon.run] {ts}\n")
+                        f.write("".join(traceback.format_exception(type(e), e, e.__traceback__)))
+                        f.write("\n")
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+    threading.Thread(target=_icon_run_with_log, daemon=True).start()
     return icon
 
 

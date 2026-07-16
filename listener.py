@@ -135,11 +135,56 @@ def _on_click(x, y, button, pressed) -> None:
 
 
 # ──── 启动 ────
+def _log_failure(name: str, err: Exception) -> None:
+    """监听器失败兜底:既打 stderr 又 append 到 keynote.crash.log,失败也吞。"""
+    try:
+        import sys
+        import traceback
+        from pathlib import Path
+        sys.stderr.write(f"[listener] {name} failed: {err}\n")
+        sys.stderr.flush()
+        try:
+            from config import exe_dir
+            log_path = Path(exe_dir()) / "keynote.crash.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            import time
+            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[listener.start:{name}] {ts}\n")
+                f.write("".join(traceback.format_exception(type(err), err, err.__traceback__)))
+                f.write("\n")
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 def start() -> None:
-    """并行启动 keyboard + mouse 监听,各自守护线程,阻塞直到被外部 stop"""
-    with keyboard.Listener(on_press=_on_press) as kb, \
-         mouse.Listener(on_click=_on_click) as ms:
-        kb.join()
+    """并行启动 keyboard + mouse 监听,任一失败不阻塞另一个,阻塞直到主监听线程退出。"""
+    kb = None
+    ms = None
+    try:
+        kb = keyboard.Listener(on_press=_on_press)
+        kb.daemon = True
+        kb.start()
+    except Exception as e:
+        _log_failure("keyboard", e)
+        kb = None
+
+    try:
+        ms = mouse.Listener(on_click=_on_click)
+        ms.daemon = True
+        ms.start()
+    except Exception as e:
+        _log_failure("mouse", e)
+        ms = None
+
+    target = kb if kb is not None else ms
+    if target is not None:
+        try:
+            target.join()
+        except Exception as e:
+            _log_failure("join", e)
 
 
 # ──── 暂停 / 恢复 ────
