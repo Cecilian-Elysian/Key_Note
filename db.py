@@ -90,6 +90,9 @@ _shutdown_event = threading.Event()
 _session_id: Optional[int] = None
 _retention_days: int = 7
 
+_MIN_MS = 10_000_000_000  # 1970-04-26;低于此视为非毫秒脏数据
+_MAX_MS = 4_102_444_800_000  # 2100-01-01
+
 _INSERT_SQL = "INSERT INTO keypresses (ts, key, session_id) VALUES (?, ?, ?)"
 _AGG_MINUTE_SQL = (
     "INSERT INTO agg_minute(minute_ts, count) VALUES (?, ?) "
@@ -628,7 +631,11 @@ def count_today() -> int:
 def count_total() -> int:
     if _conn is None:
         return 0
-    cur = _conn.execute("SELECT COALESCE(SUM(count), 0) FROM agg_minute")
+    cur = _conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM agg_minute "
+        "WHERE minute_ts BETWEEN ? AND ?",
+        (_MIN_MS, _MAX_MS),
+    )
     return cur.fetchone()[0]
 
 
@@ -647,8 +654,8 @@ def rate_series(hours: int = 24) -> list:
     since = int((time.time() - hours * 3600) * 1000)
     return _conn.execute(
         "SELECT minute_ts, count FROM agg_minute "
-        "WHERE minute_ts >= ? ORDER BY minute_ts",
-        (since,),
+        "WHERE minute_ts BETWEEN ? AND ? ORDER BY minute_ts",
+        (max(_MIN_MS, since), _MAX_MS),
     ).fetchall()
 
 
@@ -658,8 +665,8 @@ def heatmap_data(days: int = 7) -> np.ndarray:
     since = int((time.time() - days * 86400) * 1000)
     grid = np.zeros((7, 24), dtype=int)
     for minute_ts, count in _conn.execute(
-        "SELECT minute_ts, count FROM agg_minute WHERE minute_ts >= ?",
-        (since,),
+        "SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN ? AND ?",
+        (max(_MIN_MS, since), _MAX_MS),
     ):
         dt = datetime.fromtimestamp(minute_ts / 1000)
         grid[dt.weekday(), dt.hour] += count
@@ -680,8 +687,8 @@ def heatmap_yearly(days: int = 365) -> tuple[np.ndarray, datetime, datetime]:
     since_ms = int(start_dt.timestamp() * 1000)
     grid = np.zeros((53, 7), dtype=int)
     for day_ts, count in _conn.execute(
-        "SELECT day_ts, count FROM agg_day WHERE day_ts >= ?",
-        (since_ms,),
+        "SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN ? AND ?",
+        (max(_MIN_MS, since_ms), _MAX_MS),
     ):
         dt = datetime.fromtimestamp(day_ts / 1000).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -697,16 +704,18 @@ def heatmap_yearly(days: int = 365) -> tuple[np.ndarray, datetime, datetime]:
 
 
 def daily_counts(days: int = 30) -> list[tuple[int, int]]:
-    """返回过去 N 天每日 (day_ts_ms, count),按时间升序。"""
+    """返回过去 N 天每日 (day_ts_ms, count),按时间升序,跳过非法时间戳。"""
     if _conn is None:
         return []
     end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     start_dt = end_dt - timedelta(days=days - 1)
     since_ms = int(start_dt.timestamp() * 1000)
-    rows = _conn.execute(
-        "SELECT day_ts, count FROM agg_day WHERE day_ts >= ? ORDER BY day_ts",
-        (since_ms,),
-    ).fetchall()
+    rows = []
+    for day_ts, c in _conn.execute(
+        "SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN ? AND ? ORDER BY day_ts",
+        (max(_MIN_MS, since_ms), _MAX_MS),
+    ):
+        rows.append((day_ts, c))
     return rows
 
 
@@ -759,8 +768,9 @@ def daily_active_days(days: int = 30) -> int:
     start_dt = end_dt - timedelta(days=days - 1)
     since_ms = int(start_dt.timestamp() * 1000)
     row = _conn.execute(
-        "SELECT COUNT(*) FROM agg_day WHERE day_ts >= ? AND count > 0",
-        (since_ms,),
+        "SELECT COUNT(*) FROM agg_day "
+        "WHERE day_ts BETWEEN ? AND ? AND count > 0",
+        (max(_MIN_MS, since_ms), _MAX_MS),
     ).fetchone()
     return int(row[0]) if row else 0
 
@@ -772,8 +782,8 @@ def hourly_today() -> list:
     midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     since_ms = int(midnight.timestamp() * 1000)
     rows = _conn.execute(
-        "SELECT hour_ts, count FROM agg_hour WHERE hour_ts >= ? ORDER BY hour_ts",
-        (since_ms,),
+        "SELECT hour_ts, count FROM agg_hour WHERE hour_ts BETWEEN ? AND ? ORDER BY hour_ts",
+        (max(_MIN_MS, since_ms), _MAX_MS),
     ).fetchall()
     return rows
 
@@ -784,8 +794,9 @@ def cpm_recent(minutes: int = 5) -> float:
         return 0.0
     since = int((time.time() - minutes * 60) * 1000)
     row = _conn.execute(
-        "SELECT COALESCE(SUM(count), 0) FROM agg_minute WHERE minute_ts >= ?",
-        (since,),
+        "SELECT COALESCE(SUM(count), 0) FROM agg_minute "
+        "WHERE minute_ts BETWEEN ? AND ?",
+        (max(_MIN_MS, since), _MAX_MS),
     ).fetchone()
     total = float(row[0]) if row else 0.0
     return total / minutes
