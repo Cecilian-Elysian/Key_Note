@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import math
 import tkinter as tk
-from datetime import datetime, timedelta
 
 import customtkinter as ctk
 
 import db
+import theme
 from ui.pages.base import BasePage
 
 
@@ -45,11 +45,6 @@ _KEY_SPACER_W = 5
 
 
 # ──── 颜色工具 ────
-def _hex_to_rgb(hx: str) -> tuple:
-    hx = hx.lstrip("#")
-    return (int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16))
-
-
 def _lerp_color(c0: tuple, c1: tuple, t: float) -> str:
     t = max(0.0, min(1.0, t))
     r = round(c0[0] + (c1[0] - c0[0]) * t)
@@ -225,8 +220,8 @@ class KeyboardPage(BasePage):
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
 
-        base_rgb = _hex_to_rgb(p["key_empty"])
-        peak_rgb = _hex_to_rgb(p["accent"])
+        base_rgb = theme.hex_to_rgb(p["key_empty"])
+        peak_rgb = theme.hex_to_rgb(p["accent"])
 
         def color_for(key: str) -> str:
             count = self._kb_counts.get(key, 0)

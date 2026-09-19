@@ -45,15 +45,10 @@ def _pick_font() -> Optional[str]:
 
 
 # ──── 顶部栏图标自绘 ────
-def _hex_to_rgb(h: str) -> tuple:
-    h = h.lstrip("#")
-    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-
-
 def _draw_pin_icon(colors, active: bool = False) -> Image.Image:
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    fg = _hex_to_rgb(colors.accent if active else colors.fg_muted)
+    fg = theme.hex_to_rgb(colors.accent if active else colors.fg_muted)
     d.ellipse([(9, 5), (17, 13)], fill=fg)
     d.line([(13, 13), (23, 23)], fill=fg, width=2)
     d.polygon([(21, 22), (26, 19), (25, 26)], fill=fg)
@@ -63,7 +58,7 @@ def _draw_pin_icon(colors, active: bool = False) -> Image.Image:
 def _draw_gear_icon(colors) -> Image.Image:
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    fg = _hex_to_rgb(colors.fg_muted)
+    fg = theme.hex_to_rgb(colors.fg_muted)
     d.ellipse([(8, 8), (24, 24)], outline=fg, width=2)
     for x, y in [(16, 5), (16, 27), (5, 16), (27, 16)]:
         d.rectangle([(x-2, y-2), (x+2, y+2)], fill=fg)

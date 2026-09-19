@@ -4,8 +4,10 @@ import sys
 # ──── 托盘图标 ────
 import threading
 import time
+import traceback
 import winreg
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PIL import Image
@@ -26,18 +28,30 @@ _RETENTION_OPTIONS = [("永久", 0), ("7 天", 7), ("180 天", 180), ("365 天",
 _icon: "Icon | None" = None
 _window: "App | None" = None
 
-_TINT = {
-    "active": (30, 144, 255),
-    "paused": (120, 120, 120),
-    "idle":   (255, 193, 7),
-}
+_TINT_ACTIVE = (30, 144, 255)
 _TINT_ALPHA = 0.3
 _TRAY_SIZE = 64
 _base_icon_cache: "Image.Image | None" = None
 
 
+def _log_failure(prefix: str, e: BaseException) -> None:
+    """stderr + crash.log 双通道记录异常,tray 子线程 / 自启失败统一走这里。"""
+    try:
+        sys.stderr.write(f"[{prefix}] {e}\n")
+        sys.stderr.flush()
+        log_path = Path(config.exe_dir()) / "keynote.crash.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{prefix}] {ts}\n")
+            f.write("".join(traceback.format_exception(type(e), e, e.__traceback__)))
+            f.write("\n")
+    except Exception:
+        pass
+
+
 def _load_base_icon() -> Image.Image:
-    """加载并缓存 icon.ico 为 64×64 RGBA 底图,供三态叠加使用。"""
+    """加载并缓存 icon.ico 为 64×64 RGBA 底图,供托盘 tint 叠加使用。"""
     global _base_icon_cache
     if _base_icon_cache is not None:
         return _base_icon_cache
@@ -47,10 +61,9 @@ def _load_base_icon() -> Image.Image:
     return img
 
 
-def _icon_image(state: str = "active") -> Image.Image:
+def _icon_image() -> Image.Image:
     base = _load_base_icon()
-    color = _TINT.get(state, _TINT["active"])
-    overlay = Image.new("RGBA", base.size, (*color, 0))
+    overlay = Image.new("RGBA", base.size, (*_TINT_ACTIVE, 0))
     overlay.putalpha(base.split()[3])
     return Image.blend(base, overlay, _TINT_ALPHA)
 
@@ -75,7 +88,7 @@ def _set_autostart(enable: bool) -> None:
                 except FileNotFoundError:
                     pass
     except Exception as e:
-        print(f"autostart err: {e}")
+        _log_failure("autostart", e)
 
 
 # ──── 设置窗口 ────
@@ -285,26 +298,7 @@ def start(window: "App") -> Icon:
         try:
             icon.run()
         except Exception as e:
-            try:
-                import sys
-                import traceback
-                from pathlib import Path
-                sys.stderr.write(f"[tray] icon.run failed: {e}\n")
-                sys.stderr.flush()
-                try:
-                    import config
-                    log_path = Path(config.exe_dir()) / "keynote.crash.log"
-                    log_path.parent.mkdir(parents=True, exist_ok=True)
-                    import time
-                    ts = time.strftime("%Y-%m-%d %H:%M:%S")
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[tray.icon.run] {ts}\n")
-                        f.write("".join(traceback.format_exception(type(e), e, e.__traceback__)))
-                        f.write("\n")
-                except Exception:
-                    pass
-            except Exception:
-                pass
+            _log_failure("tray.icon.run", e)
 
     threading.Thread(target=_icon_run_with_log, daemon=True).start()
     return icon

@@ -1,8 +1,8 @@
-"""统一主题令牌系统,dark 主题颜色/间距/圆角集中管理,UI 模块通过 current().colors 取色"""
+"""统一主题令牌系统,dark 主题颜色集中管理,UI 模块通过 current().colors 取色"""
 from __future__ import annotations
 
 # ──── 令牌定义 ────
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -35,29 +35,11 @@ class ColorTokens:
 
 
 @dataclass(frozen=True)
-class SpacingTokens:
-    xs: int = 4
-    sm: int = 8
-    md: int = 12
-    lg: int = 16
-    xl: int = 24
-
-
-@dataclass(frozen=True)
-class RadiusTokens:
-    sm: int = 6
-    md: int = 10
-    lg: int = 14
-
-
-@dataclass(frozen=True)
 class Theme:
     name: str
     appearance: str
     plt_style: str
     colors: ColorTokens
-    spacing: SpacingTokens = field(default_factory=SpacingTokens)
-    radius: RadiusTokens = field(default_factory=RadiusTokens)
 
 
 # ──── 唯一主题(dark) ────
@@ -94,6 +76,13 @@ _current: Theme = DARK
 
 def current() -> Theme:
     return _current
+
+
+# ──── 颜色工具 ────
+def hex_to_rgb(hx: str) -> tuple[int, int, int]:
+    """`#RRGGBB` / `RRGGBB` → `(r, g, b)` 元组,供 Pillow RGBA / 托盘图标 tint 用。"""
+    h = hx.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
 # ──── 应用 ────
