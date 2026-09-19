@@ -1,4 +1,4 @@
-"""[死代码] 设置页面,包装 SettingsPanel 作为页面,通过 app._on_settings_changed 回调应用配置"""
+"""设置页面(完整实现,未挂载到 App):包装 SettingsPanel 作为页面,通过 app._on_settings_changed 回调应用配置。后续可作第 3 页候选恢复。"""
 from __future__ import annotations
 
 import customtkinter as ctk

@@ -1,4 +1,4 @@
-"""[死代码] 年度热力图页面,顶部 4 张统计卡(今日/7日均/30日均/累计) + GhHeatmapWidget 年度热力图,右上角设置按钮打开 SettingsPanel"""
+"""年度热力图页面(完整实现,未挂载到 App):顶部 4 张统计卡(今日/7日均/30日均/累计) + GhHeatmapWidget 年度热力图,右上角设置按钮打开 SettingsPanel。后续可作第 3 页候选恢复。"""
 from __future__ import annotations
 
 import customtkinter as ctk
