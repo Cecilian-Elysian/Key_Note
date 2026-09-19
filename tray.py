@@ -68,6 +68,16 @@ def _icon_image() -> Image.Image:
     return Image.blend(base, overlay, _TINT_ALPHA)
 
 
+def notify(message: str, title: str = APP_NAME) -> None:
+    """托盘气泡通知,图标未启动时静默忽略。"""
+    if _icon is None:
+        return
+    try:
+        _icon.notify(message, title)
+    except Exception:
+        pass
+
+
 # ──── 开机自启 ────
 def _set_autostart(enable: bool) -> None:
     if not sys.platform.startswith("win"):

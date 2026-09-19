@@ -420,9 +420,21 @@ class App(ctk.CTk):
     def _on_close(self) -> None:
         self._save_geometry()
         if self.cfg.get("close_to_tray", True):
+            self._notify_close_hint_once()
             self.withdraw()
         else:
             self.quit_app()
+
+    def _notify_close_hint_once(self) -> None:
+        """首次关闭到托盘时弹气泡,避免用户以为程序退出。"""
+        if getattr(self, "_close_hinted", False):
+            return
+        self._close_hinted = True
+        try:
+            if _tray is not None:
+                _tray.notify("KeyNote 已最小化到托盘,点击托盘图标可重新打开")
+        except Exception:
+            pass
 
     def _save_geometry(self) -> None:
         if not self.cfg.get("remember_window_pos", True):
