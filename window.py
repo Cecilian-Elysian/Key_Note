@@ -184,6 +184,7 @@ class App(ctk.CTk):
         self.update_idletasks()
         self._hide_from_taskbar()
         self._enable_drag()
+        self._bind_shortcuts()
         self._apply_mouse_listener_setting()
         self._set_window_icon()
 
@@ -287,6 +288,14 @@ class App(ctk.CTk):
 
     def _on_drag_end(self, _event) -> None:
         self._drag_offset = None
+
+    # ──── 窗口级快捷键 ────
+    def _bind_shortcuts(self) -> None:
+        """Alt+1/2 切页,Alt+, 打开设置,Alt+P 切换置顶。"""
+        self.bind("<Alt-Key-1>", lambda _e: self._switch_page(self.PAGE_OVERVIEW))
+        self.bind("<Alt-Key-2>", lambda _e: self._switch_page(self.PAGE_KEYBOARD))
+        self.bind("<Alt-comma>", lambda _e: self._open_settings())
+        self.bind("<Alt-Key-p>", lambda _e: self._toggle_topmost())
 
     # ──── UI 构建(grid 三段) ────
     def _build_ui(self) -> None:

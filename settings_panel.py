@@ -335,6 +335,7 @@ def open_or_focus(master, cfg: dict, on_save_callback) -> None:
             pass
 
     top.protocol("WM_DELETE_WINDOW", _on_close_settings)
+    top.bind("<Escape>", lambda _e: _on_close_settings())
     master._settings_win = top
     master._settings_panel = panel
 
