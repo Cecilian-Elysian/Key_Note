@@ -41,8 +41,8 @@ logs/
 venv/
 .env
 
-# Changelog (not tracked in git)
-LOG.md
+# User config (隐私:窗口几何/快捷键等私有数据,不入库)
+config.json
 
 # Test / coverage
 .pytest_cache/
