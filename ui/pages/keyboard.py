@@ -42,6 +42,7 @@ _KEY_ROWS = [
 ]
 _ROW_OFFSETS = [0.0, 0.5, 0.75, 1.25]
 _KEY_SPACER_W = 5
+_CN_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
 # ──── 颜色工具 ────
@@ -53,12 +54,61 @@ def _lerp_color(c0: tuple, c1: tuple, t: float) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
+class _CanvasTip:
+    """canvas 悬停提示:隐藏式 Toplevel(仿 gh_heatmap._HeatmapTooltip,单行文本)。"""
+
+    def __init__(self, parent) -> None:
+        self._win = tk.Toplevel(parent.winfo_toplevel())
+        self._win.withdraw()
+        self._win.overrideredirect(True)
+        self._win.attributes("-topmost", True)
+        p = _palette()
+        self._lbl = tk.Label(
+            self._win, bg=p["card_bg"], fg=p["fg_primary"],
+            font=("", 10), padx=8, pady=3,
+            highlightthickness=1, highlightbackground=p["key_border"],
+        )
+        self._lbl.pack()
+
+    def show(self, text: str, x: int, y: int) -> None:
+        p = _palette()
+        try:
+            self._lbl.configure(
+                text=text, bg=p["card_bg"], fg=p["fg_primary"],
+                highlightbackground=p["key_border"],
+            )
+            self._win.update_idletasks()
+            w = self._win.winfo_reqwidth()
+            h = self._win.winfo_reqheight()
+            sw = self._win.winfo_screenwidth()
+            sh = self._win.winfo_screenheight()
+            px, py = x + 14, y + 14
+            if px + w > sw:
+                px = x - w - 14
+            if py + h > sh:
+                py = y - h - 14
+            self._win.geometry(f"+{px}+{py}")
+            self._win.deiconify()
+        except Exception:
+            pass
+
+    def hide(self) -> None:
+        try:
+            self._win.withdraw()
+        except Exception:
+            pass
+
+
 class KeyboardPage(BasePage):
     name = "keyboard"
 
     def _build(self) -> None:
         p = _palette()
         self.configure(fg_color=p["bg"])
+        self._tip = None
+        self._h_layout = None
+        self._h_grid = None
+        self._kb_rects: list[tuple[str, int, int, int, int]] = []
 
         # ──── 顶紧凑副卡(3 张) ────
         self._sub: dict[str, ctk.CTkLabel] = {}
@@ -94,6 +144,8 @@ class KeyboardPage(BasePage):
         )
         self._h_canvas.pack(fill="x", padx=10, pady=(2, 8))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
+        self._h_canvas.bind("<Motion>", self._on_h_motion)
+        self._h_canvas.bind("<Leave>", lambda _e: self._hide_tip())
 
         # ──── 键盘热力图 ────
         kb_card = ctk.CTkFrame(self, fg_color=p["card_bg"], corner_radius=10)
@@ -115,6 +167,8 @@ class KeyboardPage(BasePage):
         )
         self._kb_canvas.pack(fill="x", padx=10, pady=(0, 10))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
+        self._kb_canvas.bind("<Motion>", self._on_kb_motion)
+        self._kb_canvas.bind("<Leave>", lambda _e: self._hide_tip())
         self._kb_counts: dict[str, int] = {}
         self._kb_max = 0
 
@@ -138,6 +192,8 @@ class KeyboardPage(BasePage):
         p = _palette()
         c = self._h_canvas
         c.delete("all")
+        self._h_layout = None
+        self._h_grid = None
         w = c.winfo_width()
         if w < 60:
             return
@@ -165,6 +221,8 @@ class KeyboardPage(BasePage):
         grid_w = cols * cell_w + (cols - 1) * gap
         ox = margin_x + max(0, (usable_w - grid_w) / 2)
         oy = margin_top
+        self._h_layout = (ox, oy, cell_w, cell_h, gap)
+        self._h_grid = grid
 
         def _bucket(val: int) -> str:
             if val <= 0 or peak <= 0:
@@ -175,7 +233,6 @@ class KeyboardPage(BasePage):
             if r <= 0.75: return p["h_l3"]
             return p["h_l4"]
 
-        _CN_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
         for dow in range(rows):
             ty = oy + dow * (cell_h + gap) + cell_h / 2
             c.create_text(6, ty, text=_CN_WEEKDAYS[dow], anchor="w",
@@ -209,6 +266,7 @@ class KeyboardPage(BasePage):
         c = self._kb_canvas
         c.delete("all")
         c.configure(bg=p["card_bg"])
+        self._kb_rects = []
         w = c.winfo_width()
         if w < 50:
             return
@@ -247,6 +305,7 @@ class KeyboardPage(BasePage):
                     (x0 + x1) // 2, (y0 + y1) // 2,
                     text=key.upper(), fill=p["fg_primary"], font=("", 10, "bold"),
                 )
+                self._kb_rects.append((key, int(x0), int(y0), int(x1), int(y1)))
             y += cell_h + gap
 
         space_count = self._kb_counts.get("space", 0)
@@ -268,6 +327,56 @@ class KeyboardPage(BasePage):
             (sx0 + sx1) // 2, (sy0 + sy1) // 2,
             text="SPACE", fill=p["fg_primary"], font=("", 9, "bold"),
         )
+        self._kb_rects.append(("space", int(sx0), int(sy0), int(sx1), int(sy1)))
+
+    # ──── canvas 悬停提示 ────
+    def _show_tip(self, text: str, x: int, y: int) -> None:
+        if self._tip is None:
+            self._tip = _CanvasTip(self)
+        self._tip.show(text, x, y)
+
+    def _hide_tip(self) -> None:
+        if self._tip is not None:
+            self._tip.hide()
+
+    def _on_h_motion(self, event) -> None:
+        layout = self._h_layout
+        grid = self._h_grid
+        if layout is None or grid is None:
+            return
+        ox, oy, cell_w, cell_h, gap = layout
+        col = int((event.x - ox) // (cell_w + gap))
+        row = int((event.y - oy) // (cell_h + gap))
+        if not (0 <= col < 24 and 0 <= row < 7):
+            self._hide_tip()
+            return
+        cell_x = ox + col * (cell_w + gap)
+        cell_y = oy + row * (cell_h + gap)
+        if event.x > cell_x + cell_w or event.y > cell_y + cell_h:
+            self._hide_tip()
+            return
+        val = int(grid[row, col])
+        self._show_tip(
+            f"周{_CN_WEEKDAYS[row]} {col}:00 · {val:,} 按键",
+            self._h_canvas.winfo_pointerx(), self._h_canvas.winfo_pointery(),
+        )
+
+    def _on_kb_motion(self, event) -> None:
+        for key, x0, y0, x1, y1 in self._kb_rects:
+            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                count = int(self._kb_counts.get(key, 0))
+                label = "Space" if key == "space" else key.upper()
+                if self._kb_max > 0 and count > 0:
+                    pct = round(count / self._kb_max * 100)
+                    text = f"{label} · {count:,} 次 · 占峰值 {pct}%"
+                else:
+                    text = f"{label} · 0 次"
+                self._show_tip(
+                    text,
+                    self._kb_canvas.winfo_pointerx(), self._kb_canvas.winfo_pointery(),
+                )
+                return
+        self._hide_tip()
 
     def _do_refresh(self) -> None:
         self._refresh_sub()
