@@ -24,8 +24,8 @@
   - 数据库迁移 v1~v6,启动自动升级
 - **系统托盘** (`tray.py`): 显示窗口 / 暂停监听 / 数据管理子菜单 / 退出 / 设置
 - **设置面板** (`settings_panel.py`)
-  - 3 组配置(常规设置 / 全局热键 / 界面),其余高级参数锁定默认值
-  - 含开机自启、启动最小化、闲置暂停、全局热键、鼠标监听开关、窗口透明度、记住位置、备份目录等
+  - 2 组配置(常规设置 / 界面),其余高级参数锁定默认值
+  - 含开机自启、启动最小化、闲置暂停、鼠标监听开关、窗口透明度、记住位置、备份目录等
   - 关闭对话框自动保存
 - **数据隐私**
   - 只记录按键名 + 时间戳,**不记录**窗口 / 应用名 / 剪贴板 / 按键上下文
@@ -105,8 +105,6 @@ pip install -r requirements.txt
   "db_flush_batch_size": 200,
   "db_flush_interval_sec": 1.0,
   "log_to_file": false,
-  "enable_global_hotkey": false,
-  "global_hotkey": "ctrl+shift+k",
   "heatmap_days": 365,
   "font_family": "Microsoft YaHei UI",
   "data_dir": "",
@@ -114,7 +112,7 @@ pip install -r requirements.txt
 }
 ```
 
-完整配置可在主窗口 ⚙ 设置面板修改,也可直接编辑 `config.json`。大部分配置保存即生效,下列项 **重启后** 生效: `start_minimized` / `silent_start` / `hide_tray_icon` / `listener_enabled` / `mouse_listener_enabled` / `window_topmost` / `enable_global_hotkey` / `global_hotkey` / `db_auto_backup_days` / `db_flush_batch_size` / `db_flush_interval_sec` / `heatmap_days` / `backup_dir` / `data_dir`。
+完整配置可在主窗口 ⚙ 设置面板修改,也可直接编辑 `config.json`。大部分配置保存即生效,下列项 **重启后** 生效: `start_minimized` / `silent_start` / `hide_tray_icon` / `listener_enabled` / `mouse_listener_enabled` / `window_topmost` / `db_auto_backup_days` / `db_flush_batch_size` / `db_flush_interval_sec` / `heatmap_days` / `backup_dir` / `data_dir`。
 
 > **锁定默认值、不暴露 UI** 的配置(仍可手编 `config.json` 修改):
 > - `font_family` 字体
