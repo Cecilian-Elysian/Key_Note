@@ -4,6 +4,7 @@ from __future__ import annotations
 # ──── 字体适配 ────
 
 from datetime import datetime
+import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
@@ -64,6 +65,69 @@ def _draw_gear_icon(colors) -> Image.Image:
         d.rectangle([(x-2, y-2), (x+2, y+2)], fill=fg)
     d.ellipse([(14, 14), (18, 18)], fill=fg)
     return img
+
+
+class _TopTip:
+    """顶栏按钮悬停提示:隐藏式 Toplevel 单例 + 300ms 显示延迟防闪。"""
+
+    def __init__(self, anchor, get_text) -> None:
+        self._anchor = anchor
+        self._get_text = get_text
+        self._win = None
+        self._lbl = None
+        self._after_id: Optional[str] = None
+
+    def schedule_show(self) -> None:
+        self.hide()
+        self._after_id = self._anchor.after(300, self._show)
+
+    def hide(self) -> None:
+        if self._after_id is not None:
+            try:
+                self._anchor.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+        if self._win is not None:
+            try:
+                self._win.withdraw()
+            except Exception:
+                pass
+
+    def _show(self) -> None:
+        self._after_id = None
+        try:
+            text = self._get_text()
+            bx = self._anchor.winfo_rootx() + self._anchor.winfo_width() // 2
+            by = self._anchor.winfo_rooty() + self._anchor.winfo_height() + 6
+        except Exception:
+            return
+        try:
+            if self._win is None:
+                self._win = tk.Toplevel(self._anchor.winfo_toplevel())
+                self._win.withdraw()
+                self._win.overrideredirect(True)
+                self._win.attributes("-topmost", True)
+                c = theme.current().colors
+                self._lbl = tk.Label(
+                    self._win, bg=c.bg_tertiary, fg=c.fg_primary,
+                    font=("", 10), padx=8, pady=3,
+                    highlightthickness=1, highlightbackground=c.border,
+                )
+                self._lbl.pack()
+            c = theme.current().colors
+            self._lbl.configure(
+                text=text, bg=c.bg_tertiary, fg=c.fg_primary,
+                highlightbackground=c.border,
+            )
+            self._win.update_idletasks()
+            w = self._win.winfo_reqwidth()
+            sw = self._win.winfo_screenwidth()
+            x = max(4, min(bx - w // 2, sw - w - 4))
+            self._win.geometry(f"+{x}+{by}")
+            self._win.deiconify()
+        except Exception:
+            pass
 
 
 # ──── 主窗口 ────
@@ -285,6 +349,17 @@ class App(ctk.CTk):
         self._pin_btn.pack(side="right", padx=(0, 4))
 
         self._update_pin_btn()
+
+        self._gear_tip = _TopTip(self._settings_btn, lambda: "设置 (Alt+,)")
+        self._pin_tip = _TopTip(
+            self._pin_btn,
+            lambda: ("已置顶 (Alt+P 取消)" if self.cfg.get("window_topmost", False)
+                     else "窗口置顶 (Alt+P)"),
+        )
+        self._settings_btn.bind("<Enter>", lambda _e: self._gear_tip.schedule_show())
+        self._settings_btn.bind("<Leave>", lambda _e: self._gear_tip.hide())
+        self._pin_btn.bind("<Enter>", lambda _e: self._pin_tip.schedule_show())
+        self._pin_btn.bind("<Leave>", lambda _e: self._pin_tip.hide())
 
         # row 1: body(当前页面)
         self._body = ctk.CTkFrame(self, fg_color=c.bg_primary)
