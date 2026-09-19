@@ -119,6 +119,7 @@ class App(ctk.CTk):
         self._schedule_auto_refresh()
         self.update_idletasks()
         self._hide_from_taskbar()
+        self._enable_drag()
         self._apply_mouse_listener_setting()
         self._set_window_icon()
 
@@ -198,6 +199,30 @@ class App(ctk.CTk):
             self.iconbitmap(str(config.icon_path()))
         except Exception:
             pass
+
+    # ──── 窗口拖动(WS_EX_TOOLWINDOW 无标题栏,客户区整体拖) ────
+    def _enable_drag(self) -> None:
+        self._drag_offset = None
+        self.bind("<Button-1>", self._on_drag_start)
+        self.bind("<B1-Motion>", self._on_drag_motion)
+        self.bind("<ButtonRelease-1>", self._on_drag_end)
+
+    def _on_drag_start(self, event) -> None:
+        try:
+            self._drag_offset = (event.x_root - self.winfo_x(), event.y_root - self.winfo_y())
+        except Exception:
+            self._drag_offset = None
+
+    def _on_drag_motion(self, event) -> None:
+        if self._drag_offset is None:
+            return
+        try:
+            self.geometry(f"+{event.x_root - self._drag_offset[0]}+{event.y_root - self._drag_offset[1]}")
+        except Exception:
+            pass
+
+    def _on_drag_end(self, _event) -> None:
+        self._drag_offset = None
 
     # ──── UI 构建(grid 三段) ────
     def _build_ui(self) -> None:
