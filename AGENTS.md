@@ -86,7 +86,7 @@
 - **不删死代码**(3 个 ui/pages 占位:`heatmap` / `top_keys` / `settings`),它们是后续页面恢复的占位
 - `build.ps1` 删 PyInstaller 工作目录只删 `build/KeyNote/`,**禁止** `Remove-Item build/`(会把 `build/_data_bak/` 用户备份一起删)
 - `build.ps1` 调 Python 用 `py`(WindowsApps 的 `python.exe` 是占位 stub)
-- `build.ps1` / `KeyNote_Setup.iss` **不写中文字符串**(PowerShell 5.1 解析报错)
+- `build.ps1` **不写中文字符串**(PowerShell 5.1 解析报错);`KeyNote_Setup.iss` 中文可用(Inno Setup 6 实测通过,2026-09-19)
 - 配色 / 图标颜色 / toggle 进度色等页内专属视觉色,**写在对应页面模块顶部常量**,不污染 `theme.py`
 
 ## 未来规划
