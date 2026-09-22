@@ -113,7 +113,7 @@ class KeyboardPage(BasePage):
         # ──── 顶紧凑副卡(3 张) ────
         self._sub: dict[str, ctk.CTkLabel] = {}
         sub_frame = ctk.CTkFrame(self, fg_color="transparent")
-        sub_frame.pack(fill="x", padx=6, pady=(8, 4))
+        sub_frame.pack(fill="x", padx=6, pady=(4, 2))
         sub_frame.columnconfigure((0, 1, 2), weight=1, uniform="sub")
         for idx, (key, title) in enumerate([
             ("total", "累计按键"),
@@ -121,38 +121,40 @@ class KeyboardPage(BasePage):
             ("active", "活跃天数"),
         ]):
             card = ctk.CTkFrame(sub_frame, fg_color=p["card_bg"], corner_radius=8)
-            card.grid(row=0, column=idx, padx=3, pady=2, sticky="nsew")
+            card.grid(row=0, column=idx, padx=3, pady=1, sticky="nsew")
             ctk.CTkLabel(card, text=title, font=("", 9), text_color=p["fg_muted"]
-                         ).pack(anchor="w", padx=8, pady=(4, 0))
+                         ).pack(anchor="w", padx=8, pady=(3, 0))
             val = ctk.CTkLabel(card, text="—", font=("", 13, "bold"), text_color=p["fg_primary"])
-            val.pack(anchor="w", padx=8, pady=(0, 4))
+            val.pack(anchor="w", padx=8, pady=(0, 3))
             self._sub[key] = val
 
         # ──── 7×24 小时热力图 ────
         h_card = ctk.CTkFrame(self, fg_color=p["card_bg"], corner_radius=10)
-        h_card.pack(fill="x", padx=6, pady=4)
+        h_card.pack(fill="x", padx=6, pady=(2, 2))
+        h_head = ctk.CTkFrame(h_card, fg_color="transparent")
+        h_head.pack(fill="x", padx=10, pady=(4, 0))
         self._h_title_lbl = ctk.CTkLabel(
-            h_card, text="7×24 小时活跃度", font=("", 11), text_color=p["fg_primary"]
+            h_head, text="7×24 小时活跃度", font=("", 11), text_color=p["fg_primary"]
         )
-        self._h_title_lbl.pack(anchor="w", padx=10, pady=(6, 0))
+        self._h_title_lbl.pack(side="left")
         self._h_summary_lbl = ctk.CTkLabel(
-            h_card, text="", font=("", 9), text_color=p["fg_muted"]
+            h_head, text="", font=("", 9), text_color=p["fg_muted"]
         )
-        self._h_summary_lbl.pack(anchor="e", padx=10)
+        self._h_summary_lbl.pack(side="right")
         self._h_canvas = tk.Canvas(
             h_card, bg=p["card_bg"], highlightthickness=0, height=127
         )
-        self._h_canvas.pack(fill="x", padx=10, pady=(2, 8))
+        self._h_canvas.pack(fill="x", padx=10, pady=(2, 6))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
         self._h_canvas.bind("<Motion>", self._on_h_motion)
         self._h_canvas.bind("<Leave>", lambda _e: self._hide_tip())
 
         # ──── 键盘热力图 ────
         kb_card = ctk.CTkFrame(self, fg_color=p["card_bg"], corner_radius=10)
-        kb_card.pack(fill="x", padx=6, pady=(4, 8))
+        kb_card.pack(fill="x", padx=6, pady=(2, 6))
         self._kb_card = kb_card
         kb_head = ctk.CTkFrame(kb_card, fg_color="transparent")
-        kb_head.pack(fill="x", padx=10, pady=(6, 2))
+        kb_head.pack(fill="x", padx=10, pady=(4, 2))
         self._kb_title_lbl = ctk.CTkLabel(
             kb_head, text="按键分布热力图", font=("", 11), text_color=p["fg_primary"]
         )
@@ -163,9 +165,9 @@ class KeyboardPage(BasePage):
         self._kb_legend.pack(side="right")
 
         self._kb_canvas = tk.Canvas(
-            kb_card, bg=p["card_bg"], highlightthickness=0, height=192
+            kb_card, bg=p["card_bg"], highlightthickness=0, height=184
         )
-        self._kb_canvas.pack(fill="x", padx=10, pady=(0, 10))
+        self._kb_canvas.pack(fill="x", padx=10, pady=(0, 8))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
         self._kb_canvas.bind("<Motion>", self._on_kb_motion)
         self._kb_canvas.bind("<Leave>", lambda _e: self._hide_tip())
@@ -277,7 +279,7 @@ class KeyboardPage(BasePage):
         gap = 5
         max_cols = max(len(r) for r in _KEY_ROWS)
         cell_w = max(20, min(30, (w - 8 - (max_cols - 1) * gap) // max_cols))
-        cell_h = 32
+        cell_h = 30
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
 
