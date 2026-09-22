@@ -140,7 +140,7 @@ class KeyboardPage(BasePage):
         )
         self._h_summary_lbl.pack(anchor="e", padx=10)
         self._h_canvas = tk.Canvas(
-            h_card, bg=p["card_bg"], highlightthickness=0, height=150
+            h_card, bg=p["card_bg"], highlightthickness=0, height=127
         )
         self._h_canvas.pack(fill="x", padx=10, pady=(2, 8))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
@@ -163,7 +163,7 @@ class KeyboardPage(BasePage):
         self._kb_legend.pack(side="right")
 
         self._kb_canvas = tk.Canvas(
-            kb_card, bg=p["card_bg"], highlightthickness=0, height=180
+            kb_card, bg=p["card_bg"], highlightthickness=0, height=192
         )
         self._kb_canvas.pack(fill="x", padx=10, pady=(0, 10))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
@@ -191,13 +191,13 @@ class KeyboardPage(BasePage):
     def _draw_hourly(self) -> None:
         p = _palette()
         c = self._h_canvas
-        c.delete("all")
         self._h_layout = None
         self._h_grid = None
         w = c.winfo_width()
-        if w < 60:
+        h = c.winfo_height()
+        if w < 60 or h < 40:
             return
-        h = int(c.winfo_height() or 130)
+        c.delete("all")
 
         try:
             grid = db.heatmap_data(7)
@@ -209,19 +209,22 @@ class KeyboardPage(BasePage):
         peak = int(grid.max()) if grid.size else 0
 
         margin_x = 24
-        margin_top = 12
-        margin_bottom = 10
-        usable_w = max(40, w - margin_x - 4)
-        usable_h = max(40, h - margin_top - margin_bottom)
         cols = 24
         rows = 7
         gap = 1
-        cell_w = max(10, min(22, (usable_w - (cols - 1) * gap) / cols))
-        cell_h = max(10, min(20, (usable_h - (rows - 1) * gap) / rows))
-        grid_w = cols * cell_w + (cols - 1) * gap
+        pad_y = 8
+        label_h = 12
+        usable_w = max(40, w - margin_x - 4)
+        cell = max(10, min(22, (usable_w - (cols - 1) * gap) / cols))
+        grid_w = cols * cell + (cols - 1) * gap
+        grid_h = rows * cell + (rows - 1) * gap
+        content_h = grid_h + 2 + label_h
+        needed = int(content_h + pad_y * 2)
+        if abs(h - needed) > 2:
+            c.configure(height=needed)
         ox = margin_x + max(0, (usable_w - grid_w) / 2)
-        oy = margin_top
-        self._h_layout = (ox, oy, cell_w, cell_h, gap)
+        oy = max(pad_y, (h - content_h) / 2)
+        self._h_layout = (ox, oy, cell, cell, gap)
         self._h_grid = grid
 
         def _bucket(val: int) -> str:
@@ -234,21 +237,21 @@ class KeyboardPage(BasePage):
             return p["h_l4"]
 
         for dow in range(rows):
-            ty = oy + dow * (cell_h + gap) + cell_h / 2
+            ty = oy + dow * (cell + gap) + cell / 2
             c.create_text(6, ty, text=_CN_WEEKDAYS[dow], anchor="w",
                           fill=p["fg_muted"], font=("", 9))
             for hour in range(cols):
-                x1 = ox + hour * (cell_w + gap)
-                y1 = oy + dow * (cell_h + gap)
+                x1 = ox + hour * (cell + gap)
+                y1 = oy + dow * (cell + gap)
                 val = int(grid[dow, hour])
                 c.create_rectangle(
-                    x1, y1, x1 + cell_w, y1 + cell_h,
+                    x1, y1, x1 + cell, y1 + cell,
                     fill=_bucket(val), outline="", width=0,
                 )
 
         for hr in (0, 6, 12, 18, 23):
-            tx = ox + hr * (cell_w + gap) + cell_w / 2
-            c.create_text(tx, oy + rows * (cell_h + gap) + 2, text=str(hr), anchor="n",
+            tx = ox + hr * (cell + gap) + cell / 2
+            c.create_text(tx, oy + grid_h + 2, text=str(hr), anchor="n",
                           fill=p["fg_muted"], font=("", 8))
 
         try:
@@ -268,12 +271,12 @@ class KeyboardPage(BasePage):
         c.configure(bg=p["card_bg"])
         self._kb_rects = []
         w = c.winfo_width()
-        if w < 50:
+        if w < 50 or c.winfo_height() < 100:
             return
 
         gap = 5
         max_cols = max(len(r) for r in _KEY_ROWS)
-        cell_w = max(30, (w - (max_cols - 1) * gap - 8) // max_cols)
+        cell_w = max(20, min(30, (w - 8 - (max_cols - 1) * gap) // max_cols))
         cell_h = 32
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
