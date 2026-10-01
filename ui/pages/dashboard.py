@@ -59,6 +59,7 @@ class OverviewPage(BasePage):
         seg.pack(fill="x", padx=8, pady=(8, 4))
         self._seg = seg
         self._stat_idx = 2
+        self._trend_fp: tuple | None = None
         seg.set(self._STAT_OPTIONS[self._stat_idx])
 
         main_card = ctk.CTkFrame(scroll, fg_color=p["card_bg"], corner_radius=10)
@@ -152,17 +153,20 @@ class OverviewPage(BasePage):
             data = rows
             title = "近 30 天按键趋势"
 
-        try:
-            self._main_val.configure(text=f"{val:,}" if val else "—")
-            self._main_sub.configure(text=f"{label}按键")
-        except Exception:
-            pass
+        fp = (key, val, tuple(data))
+        if fp != self._trend_fp:
+            self._trend_fp = fp
+            try:
+                self._main_val.configure(text=f"{val:,}" if val else "—")
+                self._main_sub.configure(text=f"{label}按键")
+            except Exception:
+                pass
 
-        try:
-            self._trend_title_lbl.configure(text=title)
-            self._draw_trend(data, key)
-        except Exception:
-            pass
+            try:
+                self._trend_title_lbl.configure(text=title)
+                self._draw_trend(data, key)
+            except Exception:
+                pass
 
         try:
             cpm = db.cpm_recent(5)
@@ -195,8 +199,7 @@ class OverviewPage(BasePage):
             x = np.arange(len(data))
             y = np.array([v for _, v in data], dtype=float) if data else np.array([0.0])
             if len(y) > 0:
-                for a in (0.02, 0.04, 0.06, 0.08, 0.10, 0.12):
-                    ax.fill_between(x, 0, y, alpha=a, color=p["accent"])
+                ax.fill_between(x, 0, y, alpha=0.35, color=p["accent"], linewidth=0)
                 ax.plot(x, y, color=p["accent"], linewidth=2)
                 if y.max() > 0:
                     pm = int(np.argmax(y))

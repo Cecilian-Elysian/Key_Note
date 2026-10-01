@@ -110,6 +110,10 @@ class KeyboardPage(BasePage):
         self._h_layout = None
         self._h_grid = None
         self._kb_rects: list[tuple[str, int, int, int, int]] = []
+        self._h_fp: bytes | None = None
+        self._h_grid_data = None
+        self._kb_fp: tuple | None = None
+        self._sub_fp: tuple | None = None
 
         # ──── 顶紧凑副卡(3 张) ────
         self._sub: dict[str, ctk.CTkLabel] = {}
@@ -175,23 +179,48 @@ class KeyboardPage(BasePage):
         self._kb_counts: dict[str, int] = {}
         self._kb_max = 0
 
-    # ──── 副卡数据 ────
-    def _refresh_sub(self) -> None:
+    # ──── 刷新(带数据指纹,无变化跳过重绘) ────
+    def _do_refresh(self) -> None:
         try:
-            self._sub["total"].configure(text=f"{db.count_total():,}")
+            sub = (db.count_total(), db.mouse_total(), db.daily_active_days(30))
+            if sub != self._sub_fp:
+                self._sub_fp = sub
+                self._sub["total"].configure(text=f"{sub[0]:,}")
+                self._sub["mouse"].configure(text=f"{sub[1]:,}")
+                self._sub["active"].configure(text=f"{sub[2]} 天")
         except Exception:
             pass
+
         try:
-            self._sub["mouse"].configure(text=f"{db.mouse_total():,}")
+            grid = db.heatmap_data(7)
+            if grid is not None and grid.size > 0:
+                fp = grid.tobytes()
+                if fp != self._h_fp:
+                    self._h_fp = fp
+                    self._draw_hourly(grid)
         except Exception:
             pass
+
         try:
-            self._sub["active"].configure(text=f"{db.daily_active_days(30)} 天")
+            rows = db.top_keys(5000)
+            fp = tuple(rows)
+            if fp != self._kb_fp:
+                self._kb_fp = fp
+                self._kb_counts = {k.lower(): c for k, c in rows}
+                self._kb_max = max(self._kb_counts.values(), default=0)
+                if self._kb_max > 0:
+                    top_key = max(self._kb_counts.items(), key=lambda kv: kv[1])
+                    self._kb_legend.configure(
+                        text=f"最高: {top_key[0].upper()} × {top_key[1]:,}"
+                    )
+                else:
+                    self._kb_legend.configure(text="")
+                self._draw_keyboard()
         except Exception:
             pass
 
     # ──── 7×24 渲染 ────
-    def _draw_hourly(self) -> None:
+    def _draw_hourly(self, grid=None) -> None:
         p = _palette()
         s = getattr(self.app, "ui_scale", 1.0)
         c = self._h_canvas
@@ -203,10 +232,14 @@ class KeyboardPage(BasePage):
             return
         c.delete("all")
 
-        try:
-            grid = db.heatmap_data(7)
-        except Exception:
-            return
+        if grid is None:
+            grid = self._h_grid_data
+        if grid is None:
+            try:
+                grid = db.heatmap_data(7)
+            except Exception:
+                return
+        self._h_grid_data = grid
         if grid is None or grid.size == 0:
             return
 
@@ -388,24 +421,6 @@ class KeyboardPage(BasePage):
                 )
                 return
         self._hide_tip()
-
-    def _do_refresh(self) -> None:
-        self._refresh_sub()
-        self._draw_hourly()
-        try:
-            rows = db.top_keys(5000)
-            self._kb_counts = {k.lower(): c for k, c in rows}
-            self._kb_max = max(self._kb_counts.values(), default=0)
-            if self._kb_max > 0:
-                top_key = max(self._kb_counts.items(), key=lambda kv: kv[1])
-                self._kb_legend.configure(
-                    text=f"最高: {top_key[0].upper()} × {top_key[1]:,}"
-                )
-            else:
-                self._kb_legend.configure(text="")
-        except Exception:
-            pass
-        self._draw_keyboard()
 
     def _do_apply_theme(self) -> None:
         p = _palette()

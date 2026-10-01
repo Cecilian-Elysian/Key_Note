@@ -53,6 +53,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self._tooltip = None
         self._hover_rect = None
         self._s = 1.0
+        self._fp = None
         self._build()
 
     def _S(self, px: float) -> int:
@@ -99,8 +100,12 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self.after(50, self._render)
 
     # ──── 数据刷新 ────
-    def refresh(self) -> None:
+    def refresh(self, force: bool = False) -> None:
         grid, start_dt, end_dt = db.heatmap_yearly(self._days)
+        fp = (grid.tobytes(), self._canvas.winfo_width(), self._canvas.winfo_height())
+        if not force and fp == self._fp:
+            return
+        self._fp = fp
         self._grid = grid
         self._start_dt = start_dt
         self._end_dt = end_dt
@@ -179,7 +184,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             except Exception:
                 pass
         try:
-            self.refresh()
+            self.refresh(force=True)
         except Exception:
             try:
                 self._render()
