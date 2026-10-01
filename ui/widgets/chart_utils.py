@@ -1,6 +1,7 @@
 """matplotlib 可缩放画布工厂,创建自适应容器尺寸的 FigureCanvas,统一背景色同步,提供给 dashboard 折线图和各死代码页面复用"""
 from __future__ import annotations
 
+import tkinter as tk
 from typing import Optional, Tuple
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -94,3 +95,80 @@ def create_resizable_canvas(
         widget.after(ms, _schedule_fit)
 
     return fig, canvas
+
+
+# ──── canvas 悬停提示 ────
+class CanvasTip:
+    """canvas 悬停提示:隐藏式 Toplevel,单/双行文本,屏幕边缘自动翻转。
+
+    颜色由构造方传入(页内专属色或 theme 色),主题切换时销毁重建即可。
+    """
+
+    def __init__(
+        self,
+        parent,
+        bg: str,
+        fg: str,
+        border: str,
+        sub_fg: Optional[str] = None,
+        bold: bool = True,
+    ) -> None:
+        self._bg, self._fg, self._border = bg, fg, border
+        self._sub_fg = sub_fg or fg
+        font = ("", 10, "bold") if bold else ("", 10)
+        self._win = tk.Toplevel(parent.winfo_toplevel())
+        self._win.withdraw()
+        self._win.overrideredirect(True)
+        self._win.attributes("-topmost", True)
+        self._frame = tk.Frame(
+            self._win, bd=0,
+            highlightthickness=1, highlightbackground=self._border,
+        )
+        self._frame.pack()
+        self._lbl = tk.Label(self._frame, font=font, padx=8)
+        self._lbl.pack(fill="x")
+        self._sub_lbl = tk.Label(self._frame, font=("", 9), padx=8)
+        self._sub_packed = False
+
+    def show(self, text: str, x: int, y: int, sub: Optional[str] = None) -> None:
+        try:
+            self._frame.configure(bg=self._bg, highlightbackground=self._border)
+            if sub is None:
+                self._lbl.configure(text=text, bg=self._bg, fg=self._fg, pady=3)
+                if self._sub_packed:
+                    self._sub_lbl.pack_forget()
+                    self._sub_packed = False
+            else:
+                self._lbl.configure(text=text, bg=self._bg, fg=self._fg, pady=(4, 0))
+                self._sub_lbl.configure(
+                    text=sub, bg=self._bg, fg=self._sub_fg, pady=(0, 4)
+                )
+                if not self._sub_packed:
+                    self._sub_lbl.pack(fill="x")
+                    self._sub_packed = True
+            self._win.update_idletasks()
+            w = self._win.winfo_reqwidth()
+            h = self._win.winfo_reqheight()
+            sw = self._win.winfo_screenwidth()
+            sh = self._win.winfo_screenheight()
+            px, py = x + 14, y + 14
+            if px + w > sw:
+                px = x - w - 14
+            if py + h > sh:
+                py = y - h - 14
+            self._win.geometry(f"+{px}+{py}")
+            self._win.deiconify()
+        except Exception:
+            pass
+
+    def hide(self) -> None:
+        try:
+            self._win.withdraw()
+        except Exception:
+            pass
+
+    def destroy(self) -> None:
+        try:
+            self._win.destroy()
+        except Exception:
+            pass

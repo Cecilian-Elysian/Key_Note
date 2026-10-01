@@ -9,6 +9,7 @@ import customtkinter as ctk
 import db
 import theme
 from ui.pages.base import BasePage
+from ui.widgets.chart_utils import CanvasTip
 
 
 # ──── 页面专属调色板(与 dashboard.py 解耦) ────
@@ -52,51 +53,6 @@ def _lerp_color(c0: tuple, c1: tuple, t: float) -> str:
     g = round(c0[1] + (c1[1] - c0[1]) * t)
     b = round(c0[2] + (c1[2] - c0[2]) * t)
     return f"#{r:02X}{g:02X}{b:02X}"
-
-
-class _CanvasTip:
-    """canvas 悬停提示:隐藏式 Toplevel(仿 gh_heatmap._HeatmapTooltip,单行文本)。"""
-
-    def __init__(self, parent) -> None:
-        self._win = tk.Toplevel(parent.winfo_toplevel())
-        self._win.withdraw()
-        self._win.overrideredirect(True)
-        self._win.attributes("-topmost", True)
-        p = _palette()
-        self._lbl = tk.Label(
-            self._win, bg=p["card_bg"], fg=p["fg_primary"],
-            font=("", 10), padx=8, pady=3,
-            highlightthickness=1, highlightbackground=p["key_border"],
-        )
-        self._lbl.pack()
-
-    def show(self, text: str, x: int, y: int) -> None:
-        p = _palette()
-        try:
-            self._lbl.configure(
-                text=text, bg=p["card_bg"], fg=p["fg_primary"],
-                highlightbackground=p["key_border"],
-            )
-            self._win.update_idletasks()
-            w = self._win.winfo_reqwidth()
-            h = self._win.winfo_reqheight()
-            sw = self._win.winfo_screenwidth()
-            sh = self._win.winfo_screenheight()
-            px, py = x + 14, y + 14
-            if px + w > sw:
-                px = x - w - 14
-            if py + h > sh:
-                py = y - h - 14
-            self._win.geometry(f"+{px}+{py}")
-            self._win.deiconify()
-        except Exception:
-            pass
-
-    def hide(self) -> None:
-        try:
-            self._win.withdraw()
-        except Exception:
-            pass
 
 
 class KeyboardPage(BasePage):
@@ -376,7 +332,11 @@ class KeyboardPage(BasePage):
     # ──── canvas 悬停提示 ────
     def _show_tip(self, text: str, x: int, y: int) -> None:
         if self._tip is None:
-            self._tip = _CanvasTip(self)
+            p = _palette()
+            self._tip = CanvasTip(
+                self, bg=p["card_bg"], fg=p["fg_primary"],
+                border=p["key_border"], bold=False,
+            )
         self._tip.show(text, x, y)
 
     def _hide_tip(self) -> None:

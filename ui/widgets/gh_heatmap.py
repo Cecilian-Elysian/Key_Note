@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 import db
 import theme
+from ui.widgets.chart_utils import CanvasTip
 
 
 _TOTAL_COLS = 53
@@ -178,11 +179,10 @@ class GhHeatmapWidget(ctk.CTkFrame):
             pass
         if self._tooltip is not None:
             try:
-                self._tooltip._frame.configure(bg=c.bg_tertiary, highlightbackground=c.border)
-                self._tooltip._date_lbl.configure(bg=c.bg_tertiary, fg=c.fg_primary)
-                self._tooltip._count_lbl.configure(bg=c.bg_tertiary, fg=c.fg_secondary)
+                self._tooltip.destroy()
             except Exception:
                 pass
+            self._tooltip = None
         try:
             self.refresh(force=True)
         except Exception:
@@ -514,13 +514,17 @@ class GhHeatmapWidget(ctk.CTkFrame):
         count_str = f"{value:,}"
 
         if self._tooltip is None:
-            self._tooltip = _HeatmapTooltip(self)
+            c = theme.current().colors
+            self._tooltip = CanvasTip(
+                self, bg=c.bg_tertiary, fg=c.fg_primary,
+                border=c.border, sub_fg=c.fg_secondary,
+            )
         try:
             px = self._canvas.winfo_pointerx()
             py = self._canvas.winfo_pointery()
         except Exception:
             px, py = 0, 0
-        self._tooltip.show(date_str, count_str, px, py)
+        self._tooltip.show(date_str, px, py, sub=f"{count_str} 按键")
 
     def _hide_tooltip(self) -> None:
         if self._tooltip is not None:
@@ -531,67 +535,3 @@ class GhHeatmapWidget(ctk.CTkFrame):
             self._tooltip.destroy()
             self._tooltip = None
         super().destroy()
-
-
-# ──── 悬停提示 ────
-class _HeatmapTooltip:
-    def __init__(self, parent):
-        self._parent = parent
-        self._win = tk.Toplevel(parent.winfo_toplevel())
-        self._win.withdraw()
-        self._win.overrideredirect(True)
-        self._win.attributes("-topmost", True)
-
-        c = theme.current().colors
-        self._frame = tk.Frame(
-            self._win, bg=c.bg_tertiary, bd=0,
-            highlightthickness=1, highlightbackground=c.border,
-        )
-        self._frame.pack()
-        self._date_lbl = tk.Label(
-            self._frame, text="", bg=c.bg_tertiary, fg=c.fg_primary,
-            font=(_FONT_FAMILY, 10, "bold"),
-        )
-        self._date_lbl.pack(padx=8, pady=(4, 0))
-        self._count_lbl = tk.Label(
-            self._frame, text="", bg=c.bg_tertiary, fg=c.fg_secondary,
-            font=(_FONT_FAMILY, 10),
-        )
-        self._count_lbl.pack(padx=8, pady=(0, 4))
-
-    def show(self, date_str: str, count_str: str, x: int, y: int) -> None:
-        c = theme.current().colors
-        try:
-            self._frame.configure(bg=c.bg_tertiary, highlightbackground=c.border)
-            self._date_lbl.configure(text=date_str, bg=c.bg_tertiary, fg=c.fg_primary)
-            self._count_lbl.configure(
-                text=f"{count_str} 按键",
-                bg=c.bg_tertiary, fg=c.fg_secondary,
-            )
-            self._win.update_idletasks()
-            w = self._win.winfo_reqwidth()
-            h = self._win.winfo_reqheight()
-            sw = self._win.winfo_screenwidth()
-            sh = self._win.winfo_screenheight()
-            px = x + 14
-            py = y + 14
-            if px + w > sw:
-                px = x - w - 14
-            if py + h > sh:
-                py = y - h - 14
-            self._win.geometry(f"+{px}+{py}")
-            self._win.deiconify()
-        except Exception:
-            pass
-
-    def hide(self) -> None:
-        try:
-            self._win.withdraw()
-        except Exception:
-            pass
-
-    def destroy(self) -> None:
-        try:
-            self._win.destroy()
-        except Exception:
-            pass
