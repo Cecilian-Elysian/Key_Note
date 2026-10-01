@@ -140,6 +140,15 @@ class App(ctk.CTk):
         self.cfg = config.load()
         theme.apply_theme()
 
+        # ──── DPI 缩放系数(逻辑 400×550 不变,物理像素按屏放大) ────
+        self._ui_scale = 1.0
+        try:
+            self._ui_scale = max(
+                1.0, float(ctk.ScalingTracker.get_window_scaling(self))
+            )
+        except Exception:
+            pass
+
         font = self._pick_app_font()
         if font:
             try:
@@ -188,6 +197,11 @@ class App(ctk.CTk):
         self._apply_mouse_listener_setting()
         self._set_window_icon()
 
+    @property
+    def ui_scale(self) -> float:
+        """DPI 缩放系数,页面/组件的像素常量用它做屏幕适配。"""
+        return self._ui_scale
+
     def _apply_mouse_listener_setting(self) -> None:
         """启动时按 config 应用鼠标监听状态。"""
         try:
@@ -210,6 +224,8 @@ class App(ctk.CTk):
         return _pick_font()
 
     def _apply_geometry(self, cfg: dict) -> None:
+        w = round(400 * self._ui_scale)
+        h = round(550 * self._ui_scale)
         if cfg.get("remember_window_pos", True):
             geo = str(cfg.get("_window_geometry", "") or "")
             if geo:
@@ -219,22 +235,24 @@ class App(ctk.CTk):
                     return
                 except Exception:
                     pass
-        self.geometry("400x550")
-        self.minsize(400, 550)
-        self.maxsize(400, 550)
+        self.geometry(f"{w}x{h}")
+        self.minsize(w, h)
+        self.maxsize(w, h)
 
     def _clamp_window_size(self) -> None:
-        """将窗口尺寸锁定到 400×550,保留原位置。"""
+        """将窗口尺寸锁定到逻辑 400×550(按 DPI 换算物理像素),保留原位置。"""
+        w = round(400 * self._ui_scale)
+        h = round(550 * self._ui_scale)
         try:
-            self.maxsize(400, 550)
-            self.minsize(400, 550)
+            self.maxsize(w, h)
+            self.minsize(w, h)
             cur = self.geometry()
             plus_idx = cur.find("+")
             if plus_idx < 0:
-                self.geometry("400x550")
+                self.geometry(f"{w}x{h}")
                 return
             rest = cur[plus_idx:]
-            self.geometry(f"400x550{rest}")
+            self.geometry(f"{w}x{h}{rest}")
         except Exception:
             pass
 
@@ -300,15 +318,16 @@ class App(ctk.CTk):
     # ──── UI 构建(grid 三段) ────
     def _build_ui(self) -> None:
         c = theme.current().colors
+        s = self._ui_scale
         self.configure(fg_color=c.bg_primary)
 
-        self.grid_rowconfigure(0, minsize=28)
+        self.grid_rowconfigure(0, minsize=round(28 * s))
         self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, minsize=46)
+        self.grid_rowconfigure(2, minsize=round(46 * s))
         self.grid_columnconfigure(0, weight=1)
 
         # row 0: 顶栏
-        top = ctk.CTkFrame(self, height=28, fg_color=c.bg_secondary)
+        top = ctk.CTkFrame(self, height=round(28 * s), fg_color=c.bg_secondary)
         self._top = top
         top.grid(row=0, column=0, sticky="ew")
         top.pack_propagate(False)
@@ -381,7 +400,7 @@ class App(ctk.CTk):
         self._pages[self.PAGE_KEYBOARD] = KeyboardPage(self._body, self)
 
         # row 2: nav bar
-        nav = ctk.CTkFrame(self, height=46, fg_color=c.bg_secondary)
+        nav = ctk.CTkFrame(self, height=round(46 * s), fg_color=c.bg_secondary)
         self._nav = nav
         nav.grid(row=2, column=0, sticky="ew")
         nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")

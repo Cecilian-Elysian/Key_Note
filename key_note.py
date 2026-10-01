@@ -123,6 +123,21 @@ def _install_crash_log(log_dir: Path) -> None:
         pass
 
 
+# ──── DPI 感知 ────
+def _enable_dpi_awareness() -> None:
+    """进程级 DPI 感知:高分屏(125%/150%)不再被系统位图拉伸发虚。"""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # SYSTEM_DPI_AWARE
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
 # ──── 主启动流程 ────
 def main() -> int:
     cfg = config.load()
@@ -134,6 +149,8 @@ def main() -> int:
         except Exception:
             pass
         return 0
+
+    _enable_dpi_awareness()
 
     db.init(cfg)
 

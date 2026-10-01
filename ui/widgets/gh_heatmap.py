@@ -52,10 +52,21 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self._resize_after_id = None
         self._tooltip = None
         self._hover_rect = None
+        self._s = 1.0
         self._build()
+
+    def _S(self, px: float) -> int:
+        """布局常量按 DPI 缩放取整,保证高分屏观感与 100% 一致。"""
+        return round(px * self._s)
 
     def _build(self) -> None:
         c = theme.current().colors
+        try:
+            self._s = max(
+                1.0, float(getattr(self.winfo_toplevel(), "ui_scale", 1.0))
+            )
+        except Exception:
+            self._s = 1.0
 
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=2, pady=(0, 4))
@@ -215,35 +226,35 @@ class GhHeatmapWidget(ctk.CTkFrame):
     def _compute_layout(self, w: int, h: int):
         if w < 100 or h < 60:
             return None
-        avail_w = w - _WEEKDAY_LABEL_W - 2 * _MARGIN
+        avail_w = w - self._S(_WEEKDAY_LABEL_W) - 2 * self._S(_MARGIN)
         rows = self._rows_count
-        inter = (rows - 1) * _INTER_ROW_GAP
-        total_h_needed = rows * _MONTH_LABEL_H + rows * _ROWS * _CELL_MIN \
-                         + (rows * (_ROWS - 1)) * _CELL_SPACING + inter \
-                         + _LEGEND_H + 2 * _MARGIN
+        inter = (rows - 1) * self._S(_INTER_ROW_GAP)
+        total_h_needed = rows * self._S(_MONTH_LABEL_H) + rows * _ROWS * self._S(_CELL_MIN) \
+                         + (rows * (_ROWS - 1)) * self._S(_CELL_SPACING) + inter \
+                         + self._S(_LEGEND_H) + 2 * self._S(_MARGIN)
         if avail_w < 50 or h < total_h_needed / 2:
             return None
 
         max_cols = max(self._sub_cols) if self._sub_cols else _TOTAL_COLS
-        spacing = _CELL_SPACING
+        spacing = max(1, self._S(_CELL_SPACING))
         cell = (avail_w - (max_cols - 1) * spacing) / max_cols
-        cell = max(_CELL_MIN, min(_CELL_MAX, cell))
+        cell = max(self._S(_CELL_MIN), min(self._S(_CELL_MAX), cell))
         grid_w = max_cols * cell + (max_cols - 1) * spacing
         if grid_w > avail_w:
             spacing = max(1, (avail_w - max_cols * cell) / (max_cols - 1))
             grid_w = max_cols * cell + (max_cols - 1) * spacing
         grid_h_per_row = _ROWS * cell + (_ROWS - 1) * spacing
-        ox = _MARGIN + _WEEKDAY_LABEL_W + max(0.0, (avail_w - grid_w) / 2.0)
+        ox = self._S(_MARGIN) + self._S(_WEEKDAY_LABEL_W) + max(0.0, (avail_w - grid_w) / 2.0)
 
         sub_origins = []
-        cur_y = _MARGIN
+        cur_y = self._S(_MARGIN)
         for r in range(rows):
-            sub_origins.append(cur_y + _MONTH_LABEL_H)
-            cur_y += _MONTH_LABEL_H + grid_h_per_row
+            sub_origins.append(cur_y + self._S(_MONTH_LABEL_H))
+            cur_y += self._S(_MONTH_LABEL_H) + grid_h_per_row
             if r < rows - 1:
-                cur_y += _INTER_ROW_GAP
+                cur_y += self._S(_INTER_ROW_GAP)
 
-        total_used = cur_y + _LEGEND_H + _MARGIN
+        total_used = cur_y + self._S(_LEGEND_H) + self._S(_MARGIN)
         return {
             "ox": ox,
             "cell": cell,
@@ -305,7 +316,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
 
             for idx, row in enumerate([0, 2, 4]):
                 label = _CN_WEEKDAYS[idx]
-                tx = _MARGIN
+                tx = self._S(_MARGIN)
                 ty = sub_oy + row * (cell + spacing) + cell / 2
                 self._canvas.create_text(
                     tx, ty, text=label, anchor="w",
@@ -316,7 +327,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
                 sub_ox, sub_oy, cell, spacing, sub_start_col, sub_cols
             )
 
-        legend_y = layout["total_used"] - _LEGEND_H
+        legend_y = layout["total_used"] - self._S(_LEGEND_H)
         self._draw_legend(ox, grid_w, legend_y, cell, spacing)
 
         self._hover_rect = self._canvas.create_rectangle(
@@ -339,7 +350,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         c = theme.current().colors
         last_month = -1
         last_label_max_x = -1e9
-        text_y = oy - 4
+        text_y = oy - self._S(4)
 
         for local_col in range(cols_in_row):
             global_col = start_col + local_col
@@ -347,7 +358,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             if week_start.month != last_month:
                 label = _CN_MONTHS[week_start.month]
                 label_x = ox + local_col * (cell + spacing)
-                if label_x - last_label_max_x >= _MONTH_MIN_GAP:
+                if label_x - last_label_max_x >= self._S(_MONTH_MIN_GAP):
                     rid = self._canvas.create_text(
                         label_x, text_y, text=label, anchor="sw",
                         fill=c.fg_muted, font=(_FONT_FAMILY, 10),
@@ -361,12 +372,12 @@ class GhHeatmapWidget(ctk.CTkFrame):
         c = theme.current().colors
         less_text = "少"
         more_text = "多"
-        box_size = max(8, min(int(cell), 10))
-        box_spacing = 3
+        box_size = max(self._S(8), min(int(cell), self._S(10)))
+        box_spacing = self._S(3)
 
-        less_w = 11
-        more_w = 11
-        legend_w = less_w + 8 + 5 * box_size + 4 * box_spacing + 8 + more_w
+        less_w = self._S(11)
+        more_w = self._S(11)
+        legend_w = less_w + self._S(8) + 5 * box_size + 4 * box_spacing + self._S(8) + more_w
         right_edge = grid_x + grid_w
         x = right_edge - legend_w
 
@@ -374,7 +385,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             x, y + box_size / 2, text=less_text, anchor="w",
             fill=c.fg_muted, font=(_FONT_FAMILY, 10),
         )
-        x += less_w + 8
+        x += less_w + self._S(8)
 
         colors = [c.heatmap_empty, c.heatmap_l1, c.heatmap_l2, c.heatmap_l3, c.heatmap_l4]
         for level in range(5):
@@ -384,7 +395,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
             )
             x += box_size + box_spacing
 
-        x += 8 - box_spacing
+        x += self._S(8) - box_spacing
         self._canvas.create_text(
             x, y + box_size / 2, text=more_text, anchor="w",
             fill=c.fg_muted, font=(_FONT_FAMILY, 10),

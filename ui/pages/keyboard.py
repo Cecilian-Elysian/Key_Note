@@ -104,6 +104,7 @@ class KeyboardPage(BasePage):
 
     def _build(self) -> None:
         p = _palette()
+        s = getattr(self.app, "ui_scale", 1.0)
         self.configure(fg_color=p["bg"])
         self._tip = None
         self._h_layout = None
@@ -142,7 +143,7 @@ class KeyboardPage(BasePage):
         )
         self._h_summary_lbl.pack(side="right")
         self._h_canvas = tk.Canvas(
-            h_card, bg=p["card_bg"], highlightthickness=0, height=127
+            h_card, bg=p["card_bg"], highlightthickness=0, height=round(127 * s)
         )
         self._h_canvas.pack(fill="x", padx=10, pady=(2, 6))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
@@ -165,7 +166,7 @@ class KeyboardPage(BasePage):
         self._kb_legend.pack(side="right")
 
         self._kb_canvas = tk.Canvas(
-            kb_card, bg=p["card_bg"], highlightthickness=0, height=184
+            kb_card, bg=p["card_bg"], highlightthickness=0, height=round(184 * s)
         )
         self._kb_canvas.pack(fill="x", padx=10, pady=(0, 8))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
@@ -192,6 +193,7 @@ class KeyboardPage(BasePage):
     # ──── 7×24 渲染 ────
     def _draw_hourly(self) -> None:
         p = _palette()
+        s = getattr(self.app, "ui_scale", 1.0)
         c = self._h_canvas
         self._h_layout = None
         self._h_grid = None
@@ -210,14 +212,14 @@ class KeyboardPage(BasePage):
 
         peak = int(grid.max()) if grid.size else 0
 
-        margin_x = 24
+        margin_x = round(24 * s)
         cols = 24
         rows = 7
         gap = 1
-        pad_y = 8
-        label_h = 12
-        usable_w = max(40, w - margin_x - 4)
-        cell = max(10, min(22, (usable_w - (cols - 1) * gap) / cols))
+        pad_y = round(8 * s)
+        label_h = round(12 * s)
+        usable_w = max(round(40 * s), w - margin_x - 4)
+        cell = max(round(10 * s), min(round(22 * s), (usable_w - (cols - 1) * gap) / cols))
         grid_w = cols * cell + (cols - 1) * gap
         grid_h = rows * cell + (rows - 1) * gap
         content_h = grid_h + 2 + label_h
@@ -268,6 +270,7 @@ class KeyboardPage(BasePage):
     # ──── QWERTY 渲染 ────
     def _draw_keyboard(self) -> None:
         p = _palette()
+        s = getattr(self.app, "ui_scale", 1.0)
         c = self._kb_canvas
         c.delete("all")
         c.configure(bg=p["card_bg"])
@@ -276,10 +279,13 @@ class KeyboardPage(BasePage):
         if w < 50 or c.winfo_height() < 100:
             return
 
-        gap = 5
+        gap = round(5 * s)
         max_cols = max(len(r) for r in _KEY_ROWS)
-        cell_w = max(20, min(30, (w - 8 - (max_cols - 1) * gap) // max_cols))
-        cell_h = 30
+        cell_w = max(
+            round(20 * s),
+            min(round(30 * s), (w - round(8 * s) - (max_cols - 1) * gap) // max_cols),
+        )
+        cell_h = round(30 * s)
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
 
@@ -293,7 +299,7 @@ class KeyboardPage(BasePage):
             t = math.pow(count / self._kb_max, 0.5)
             return _lerp_color(base_rgb, peak_rgb, t)
 
-        y = 8
+        y = round(8 * s)
         for row_idx, row in enumerate(_KEY_ROWS):
             ox = start_x + _ROW_OFFSETS[row_idx] * (cell_w + gap) / 2
             for k_idx, key in enumerate(row):
