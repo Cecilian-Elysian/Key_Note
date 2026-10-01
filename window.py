@@ -172,6 +172,7 @@ class App(ctk.CTk):
         plt.rcParams["axes.unicode_minus"] = False
 
         self._refresh_after_id: Optional[str] = None
+        self._indicator_after_id: Optional[str] = None
         self._last_keypress_mono: float = 0.0
         self._was_paused_by_idle: bool = False
 
@@ -405,7 +406,7 @@ class App(ctk.CTk):
         nav.grid(row=2, column=0, sticky="ew")
         nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")
 
-        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "后台")] 
+        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "后台")]
         for col, (name, label) in enumerate(tabs):
             btn = ctk.CTkButton(
                 nav, text=label,
@@ -420,6 +421,12 @@ class App(ctk.CTk):
             )
             btn.grid(row=0, column=col, padx=0, pady=0, sticky="nsew")
             self._nav_buttons[name] = btn
+
+        # 激活 tab 顶边滑动指示条
+        self._nav_indicator = ctk.CTkFrame(
+            nav, height=3, width=56, corner_radius=2, fg_color=c.accent
+        )
+        nav.bind("<Configure>", lambda _e: self._move_indicator(animate=False))
 
     # ──── 页面切换 ────
     def _switch_page(self, name: str) -> None:
@@ -448,13 +455,59 @@ class App(ctk.CTk):
         for n, btn in self._nav_buttons.items():
             is_active = (n == name)
             try:
-                btn.configure(
-                    text_color=(c.accent if is_active else c.fg_muted),
-                    border_width=(2 if is_active else 0),
-                    border_color=c.accent,
-                )
+                btn.configure(text_color=(c.accent if is_active else c.fg_muted))
             except Exception:
                 pass
+        self._move_indicator(animate=True)
+
+    # ──── nav 滑动指示条 ────
+    def _cancel_indicator_anim(self) -> None:
+        aid = getattr(self, "_indicator_after_id", None)
+        if aid is not None:
+            try:
+                self.after_cancel(aid)
+            except Exception:
+                pass
+            self._indicator_after_id = None
+
+    def _move_indicator(self, animate: bool = True) -> None:
+        btn = self._nav_buttons.get(self._current_page_name)
+        ind = getattr(self, "_nav_indicator", None)
+        if btn is None or ind is None:
+            return
+        bw = btn.winfo_width()
+        if bw < 10:
+            return
+        target_x = btn.winfo_x() + max(0, (bw - ind.winfo_width()) // 2)
+
+        def _place(x: int) -> None:
+            ind.place(in_=self._nav, x=x, y=0)
+            ind.lift()
+
+        if not animate:
+            self._cancel_indicator_anim()
+            _place(target_x)
+            return
+        try:
+            cur_x = ind.winfo_x()
+        except Exception:
+            cur_x = target_x
+        if abs(cur_x - target_x) < 2:
+            self._cancel_indicator_anim()
+            _place(target_x)
+            return
+        self._cancel_indicator_anim()
+        steps = 8
+
+        def _step(i: int = 0, frm: int = cur_x, to: int = target_x) -> None:
+            t = (i + 1) / steps
+            _place(round(frm + (to - frm) * (t * (2 - t))))
+            if i + 1 < steps:
+                self._indicator_after_id = self.after(16, lambda: _step(i + 1))
+            else:
+                self._indicator_after_id = None
+
+        self._indicator_after_id = self.after(16, lambda: _step())
 
     def current_page_name(self) -> str:
         return self._current_page_name

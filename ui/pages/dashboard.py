@@ -22,6 +22,8 @@ _PALETTE: dict[str, str] = {
     "fg_muted":    "#64748B",
     "grid_line":   "#2D3748",
     "border":      "#2D3748",
+    "up":          "#39d353",
+    "down":        "#ff6b6b",
 }
 
 
@@ -60,6 +62,7 @@ class OverviewPage(BasePage):
         self._seg = seg
         self._stat_idx = 2
         self._trend_fp: tuple | None = None
+        self._last_main_val = 0
         seg.set(self._STAT_OPTIONS[self._stat_idx])
 
         main_card = ctk.CTkFrame(scroll, fg_color=p["card_bg"], corner_radius=10)
@@ -108,6 +111,29 @@ class OverviewPage(BasePage):
             self._stat_idx = 2
         self._refresh_from_idx()
 
+    def _yesterday_compare(self) -> tuple[str, str]:
+        """今日 vs 昨日按键对比 → (主卡副行文本, 颜色);昨日无数据则回退普通副行。"""
+        p = _palette()
+        try:
+            t0 = int(
+                datetime.now().replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ).timestamp() * 1000
+            )
+            by_day = dict(db.daily_counts(2))
+            y_cnt = int(by_day.get(t0 - 86_400_000, 0))
+            t_cnt = int(by_day.get(t0, 0))
+        except Exception:
+            return "按键", p["fg_muted"]
+        if y_cnt <= 0:
+            return "按键", p["fg_muted"]
+        pct = (t_cnt - y_cnt) / y_cnt * 100
+        if pct > 0.5:
+            return f"按键 · 较昨日 +{pct:.0f}%", p["up"]
+        if pct < -0.5:
+            return f"按键 · 较昨日 −{abs(pct):.0f}%", p["down"]
+        return "按键 · 较昨日 持平", p["fg_muted"]
+
     def _refresh_from_idx(self) -> None:
         if not self._built:
             return
@@ -133,9 +159,24 @@ class OverviewPage(BasePage):
         fp = (key, val, tuple(data))
         if fp != self._trend_fp:
             self._trend_fp = fp
+            p = _palette()
+
+            prev = self._last_main_val
+            self._last_main_val = val
             try:
-                self._main_val.configure(text=f"{val:,}" if val else "—")
-                self._main_sub.configure(text=f"{label}按键")
+                if prev == val:
+                    self._main_val.configure(text=f"{val:,}" if val else "—")
+                else:
+                    self.animate_number(self._main_val, prev, val, zero_text="—")
+            except Exception:
+                pass
+
+            try:
+                if key == "today":
+                    sub_text, sub_color = self._yesterday_compare()
+                else:
+                    sub_text, sub_color = f"{label}按键", p["fg_muted"]
+                self._main_sub.configure(text=sub_text, text_color=sub_color)
             except Exception:
                 pass
 

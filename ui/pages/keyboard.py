@@ -70,6 +70,7 @@ class KeyboardPage(BasePage):
         self._h_grid_data = None
         self._kb_fp: tuple | None = None
         self._sub_fp: tuple | None = None
+        self._sub_last: tuple = (0, 0, 0)
 
         # ──── 顶紧凑副卡(3 张) ────
         self._sub: dict[str, ctk.CTkLabel] = {}
@@ -141,9 +142,11 @@ class KeyboardPage(BasePage):
             sub = (db.count_total(), db.mouse_total(), db.daily_active_days(30))
             if sub != self._sub_fp:
                 self._sub_fp = sub
-                self._sub["total"].configure(text=f"{sub[0]:,}")
-                self._sub["mouse"].configure(text=f"{sub[1]:,}")
-                self._sub["active"].configure(text=f"{sub[2]} 天")
+                prev = self._sub_last
+                self._sub_last = sub
+                self.animate_number(self._sub["total"], prev[0], sub[0])
+                self.animate_number(self._sub["mouse"], prev[1], sub[1])
+                self.animate_number(self._sub["active"], prev[2], sub[2], suffix=" 天")
         except Exception:
             pass
 
