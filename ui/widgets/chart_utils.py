@@ -133,19 +133,17 @@ class CanvasTip:
     def show(self, text: str, x: int, y: int, sub: Optional[str] = None) -> None:
         try:
             self._frame.configure(bg=self._bg, highlightbackground=self._border)
+            self._lbl.configure(text=text, bg=self._bg, fg=self._fg)
+            self._sub_lbl.configure(text=sub or "", bg=self._bg, fg=self._sub_fg)
+            self._lbl.pack_forget()
+            self._sub_lbl.pack_forget()
+            self._sub_packed = False
             if sub is None:
-                self._lbl.configure(text=text, bg=self._bg, fg=self._fg, pady=3)
-                if self._sub_packed:
-                    self._sub_lbl.pack_forget()
-                    self._sub_packed = False
+                self._lbl.pack(fill="x", padx=8, pady=3)
             else:
-                self._lbl.configure(text=text, bg=self._bg, fg=self._fg, pady=(4, 0))
-                self._sub_lbl.configure(
-                    text=sub, bg=self._bg, fg=self._sub_fg, pady=(0, 4)
-                )
-                if not self._sub_packed:
-                    self._sub_lbl.pack(fill="x")
-                    self._sub_packed = True
+                self._lbl.pack(fill="x", padx=8, pady=(4, 1))
+                self._sub_lbl.pack(fill="x", padx=8, pady=(1, 4))
+                self._sub_packed = True
             self._win.update_idletasks()
             w = self._win.winfo_reqwidth()
             h = self._win.winfo_reqheight()

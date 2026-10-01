@@ -103,7 +103,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
     # ──── 数据刷新 ────
     def refresh(self, force: bool = False) -> None:
         grid, start_dt, end_dt = db.heatmap_yearly(self._days)
-        fp = (grid.tobytes(), self._canvas.winfo_width(), self._canvas.winfo_height())
+        fp = grid.tobytes()  # 尺寸变化由 <Configure>→_render 兜底,不入指纹
         if not force and fp == self._fp:
             return
         self._fp = fp

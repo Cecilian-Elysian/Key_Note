@@ -477,12 +477,18 @@ class App(ctk.CTk):
             return
         bw = btn.winfo_width()
         if bw < 10:
+            # 冷启动尚未完成布局:放置成功前每 50ms 重试(animate=False 快速定位)
+            if not getattr(self, "_ind_placed", False):
+                self._indicator_after_id = self.after(
+                    50, lambda: self._move_indicator(animate=False)
+                )
             return
         target_x = btn.winfo_x() + max(0, (bw - ind.winfo_width()) // 2)
 
         def _place(x: int) -> None:
             ind.place(in_=self._nav, x=x, y=0)
             ind.lift()
+            self._ind_placed = True
 
         if not animate:
             self._cancel_indicator_anim()
