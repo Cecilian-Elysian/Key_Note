@@ -13,7 +13,7 @@
   - 鼠标: 左/右/中/X1/X2 五键
   - 80ms 去重窗口,过滤 OS auto-repeat 虚高
 - **2 页界面** (底部 tab 切换)
-  - **📊 统计页** (`dashboard.py`): segmented 今日/近 7 天/近 30 天 + 主大数 + 趋势图 (今日 hourly / 7d&30d daily) + WPM 卡 + GitHub 风格年度热力图
+  - **📊 统计页** (`dashboard.py`): segmented 今日/近 7 天/近 30 天 + 主大数 + 趋势图 (今日 hourly / 7d&30d daily) + GitHub 风格年度热力图
   - **🔧 后台页** (`keyboard.py`): 3 张紧凑副卡 (累计按键 / 鼠标点击 / 活跃天数) + 7×24 活跃度热力图 + QWERTY 键盘热力图
 - **异步 SQLite** (`db.py`)
   - 队列 + 后台 writer 线程批写,WAL + NORMAL synchronous,长期运行零卡顿

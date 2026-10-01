@@ -1,4 +1,4 @@
-"""统计页(Page 1):segmented 选项切换主卡(今日 / 近 7 天 / 近 30 天)+ 30 天按键趋势折线 + WPM 卡 + 年度 GH 热力图"""
+"""统计页(Page 1):segmented 选项切换主卡(今日 / 近 7 天 / 近 30 天)+ 30 天按键趋势折线 + 年度 GH 热力图"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -90,29 +90,6 @@ class OverviewPage(BasePage):
         self._trend_ax = self._trend_fig.add_subplot(111)
         self._trend_ax.set_facecolor(p["card_bg"])
 
-        # ──── WPM 卡 ────
-        wpm_card = ctk.CTkFrame(scroll, fg_color=p["card_bg"], corner_radius=10)
-        self._wpm_card = wpm_card
-        wpm_card.pack(fill="x", padx=6, pady=4)
-        wpm_title = ctk.CTkLabel(
-            wpm_card, text="⌨ 打字速度", font=("", 11), text_color=p["fg_primary"]
-        )
-        wpm_title.pack(anchor="w", padx=10, pady=(8, 0))
-        body = ctk.CTkFrame(wpm_card, fg_color="transparent")
-        body.pack(fill="x", padx=10, pady=(0, 8))
-        self._wpm_val = ctk.CTkLabel(
-            body, text="—", font=("", 22, "bold"), text_color=p["accent"]
-        )
-        self._wpm_val.pack(side="left")
-        self._wpm_unit = ctk.CTkLabel(
-            body, text=" WPM", font=("", 12, "bold"), text_color=p["fg_muted"]
-        )
-        self._wpm_unit.pack(side="left")
-        self._wpm_sub = ctk.CTkLabel(
-            body, text="(5 分钟均值)", font=("", 10), text_color=p["fg_muted"]
-        )
-        self._wpm_sub.pack(side="right")
-
         # ──── GH 年度热力图 ────
         from ui.widgets.gh_heatmap import GhHeatmapWidget
 
@@ -167,13 +144,6 @@ class OverviewPage(BasePage):
                 self._draw_trend(data, key)
             except Exception:
                 pass
-
-        try:
-            cpm = db.cpm_recent(5)
-            wpm = int(cpm / 5)
-            self._wpm_val.configure(text=f"{wpm:,}" if wpm > 0 else "—")
-        except Exception:
-            pass
 
         try:
             self._heatmap.refresh()
@@ -241,11 +211,6 @@ class OverviewPage(BasePage):
             if hasattr(self, "_trend_card"):
                 self._trend_card.configure(fg_color=p["card_bg"])
                 self._trend_title_lbl.configure(text_color=p["fg_primary"])
-            if hasattr(self, "_wpm_card"):
-                self._wpm_card.configure(fg_color=p["card_bg"])
-            self._wpm_val.configure(text_color=p["accent"])
-            self._wpm_unit.configure(text_color=p["fg_muted"])
-            self._wpm_sub.configure(text_color=p["fg_muted"])
             if hasattr(self, "_heatmap"):
                 self._heatmap.configure(fg_color=p["bg"])
         except Exception:

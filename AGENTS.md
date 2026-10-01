@@ -5,9 +5,9 @@
 - **Windows 单机工具** — pynput 键盘监听 + SQLite 持久化 + customtkinter UI + pystray 托盘
 
 ## 架构约束
-- 主窗口硬编码 `400×550`,不响应式
+- 主窗口硬编码 `400×550`(逻辑尺寸,DPI 感知下物理像素按缩放系数放大),不响应式
 - 2 页(统计 / 后台),底部 tab bar 切换,默认 Page 1 = 统计
-  - Page 1 `OverviewPage`(`dashboard.py`):segmented 主卡 + 趋势图 + WPM + GH 年度
+  - Page 1 `OverviewPage`(`dashboard.py`):segmented 主卡 + 趋势图 + GH 年度
   - Page 2 `KeyboardPage`(`keyboard.py`):3 紧凑副卡 + 7×24 + QWERTY 键盘热力图(标签显示为"后台")
   - 切换走 `App._switch_page(name)`,auto-refresh 只刷新当前页
 - 设置面板通过主窗口顶部 ⚙ 按钮或托盘菜单 `⚙ → SettingsPanel Toplevel` 打开(两入口共用 `settings_panel.open_or_focus()`),而非页面导航
@@ -50,7 +50,7 @@
 |---|---|
 | `window.py` | 主窗口 UI(2 页 + tab bar)+ 自动刷新 + 闲置检测 + 设置回调 |
 | `ui/pages/base.py` | BasePage 基类 |
-| `ui/pages/dashboard.py` | OverviewPage(Page 1):segmented 主卡 + 趋势图 + WPM + GH 热力图 |
+| `ui/pages/dashboard.py` | OverviewPage(Page 1):segmented 主卡 + 趋势图 + GH 热力图 |
 | `ui/pages/keyboard.py` | KeyboardPage(Page 2):3 副卡 + 7×24 + QWERTY 键盘热力图 |
 
 ### 6. 主题系统
