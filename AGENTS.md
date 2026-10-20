@@ -98,6 +98,9 @@
 - 数据库 schema 与 Python 版保持一致(v1~v6),不破坏既有 `keynote.db`
 - WinUI3 非打包窗口不支持整窗透明:`window_alpha` 退化为**内容区**不透明度,不得宣称整窗透明
 
+## 待办(TODO)
+- [ ] **应用内更新检查**(规划见 README「路线图」):`Services/UpdateService.cs` + GitHub Releases API 对接,设置页「检查更新」入口 + 托盘通知;不引入 Squirrel/Velopack 等更新框架
+
 ## 已知取舍(Python → C# 迁移)
 - `window_alpha`:WinUI3 不支持整窗 alpha,改为内容区不透明度
 - 托盘图标 30% accent tint:GDI+ ColorMatrix 运行时渲染(`TrayService.CreateTintedIcon`,依赖 System.Drawing.Common),失败回退原图

@@ -105,6 +105,14 @@ key_note/
 | `agg_key_total` / `agg_key_type_total` | 按键累计 / 键型累计(letter/digit/symbol/modifier/function;永久) |
 | `agg_mouse_button_total` | 鼠标按键累计(永久) |
 
+## 路线图
+
+- [ ] **应用内更新检查**:对接 GitHub Releases(`Cecilian-Elysian/Key_Note`)
+  - 设置页(或关于区)提供「检查更新」:请求 Releases API,比对最新 tag 与当前程序集版本(`Assembly.GetExecutingAssembly().GetName().Version`)
+  - 有新版 → 托盘气泡通知 + 设置页提示,附 Release 页链接(用系统浏览器打开)
+  - 下载方式先走浏览器手动下载 `KeyNote_Setup.exe`;应用内静默更新(下载 + 校验 + 拉起安装)后续评估
+  - 约束:保持单机工具轻量,不引入更新框架依赖(不用 Squirrel/Velopack),实现放 `Services/UpdateService.cs`,设置页/托盘各加一个入口
+
 ## 参与开发
 
 克隆本仓库 → `dotnet build` → 运行产物。开发约定见 `AGENTS.md`。
