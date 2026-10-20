@@ -86,13 +86,13 @@ def _draw_refresh_icon(colors) -> Image.Image:
     return img
 
 
-def _draw_nav_glyph(colors, char: str) -> Image.Image:
-    """Segoe Fluent/MDL2 字形渲染成 32×32 图标,字体缺失时画圆点占位。"""
+def _draw_nav_glyph(colors, char: str, tint: str = "") -> Image.Image:
+    """Segoe Fluent/MDL2 字形渲染成 32×32 图标,tint 指定颜色,字体缺失时画圆点占位。"""
     from PIL import ImageFont
 
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    fg = theme.hex_to_rgb(colors.fg_secondary)
+    fg = theme.hex_to_rgb(tint or colors.fg_secondary)
     font = None
     for name in ("segfluent.ttf", "segmdl2.ttf"):
         try:
@@ -104,6 +104,17 @@ def _draw_nav_glyph(colors, char: str) -> Image.Image:
         d.text((16, 17), char, font=font, fill=fg, anchor="mm")
     else:
         d.ellipse([(11, 11), (21, 21)], outline=fg, width=2)
+    return img
+
+
+def _draw_mouse_glyph(colors, tint: str) -> Image.Image:
+    """手绘鼠标线稿(32×32):椭圆机身 + 中线 + 按键分割,PIL 兜底无对应 MDL2 字形。"""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    fg = theme.hex_to_rgb(tint)
+    d.rounded_rectangle([(10, 4), (22, 28)], radius=6, outline=fg, width=2)
+    d.line([(16, 8), (16, 15)], fill=fg, width=2)
+    d.line([(10, 15), (22, 15)], fill=fg, width=2)
     return img
 
 
@@ -592,6 +603,24 @@ class App(ctk.CTk):
             )
             self._refresh_icon_img = img
         return img
+
+    def glyph_icon(self, char: str, tint: str, size: int = 22) -> ctk.CTkImage:
+        """按颜色/尺寸渲染 MDL2 字形图标(KPI 卡/徽章用,带缓存);鼠标用手绘。"""
+        cache = getattr(self, "_glyph_icon_cache", None)
+        if cache is None:
+            self._glyph_icon_cache = cache = {}
+        key = (char, tint, size)
+        if key not in cache:
+            c = theme.current().colors
+            if char == "mouse":
+                pil = _draw_mouse_glyph(c, tint)
+            else:
+                pil = _draw_nav_glyph(c, char, tint=tint)
+            img = ctk.CTkImage(
+                light_image=pil, dark_image=pil, size=(size, size)
+            )
+            cache[key] = img
+        return cache[key]
 
     # ──── 页面切换 ────
     def _switch_page(self, name: str) -> None:

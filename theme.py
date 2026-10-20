@@ -113,7 +113,7 @@ FONTS = {
     "footnote": ("", 11),
     "caption": ("", 10),
     "hero_value": ("", 32, "bold"),
-    "kpi_value": ("", 22, "bold"),
+    "kpi_value": ("", 24, "bold"),
 }
 
 
@@ -122,6 +122,17 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
     """`#RRGGBB` / `RRGGBB` → `(r, g, b)` 元组,供 Pillow RGBA / 托盘图标 tint 用。"""
     h = hx.lstrip("#")
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def mix_hex(fg: str, bg: str, t: float) -> str:
+    """fg 以比例 t 混入 bg(Tk 不支持 alpha,预混出实色;胶囊底/徽章底/悬停边框用)。"""
+    r1, g1, b1 = hex_to_rgb(fg)
+    r2, g2, b2 = hex_to_rgb(bg)
+    return "#{:02X}{:02X}{:02X}".format(
+        round(r2 + (r1 - r2) * t),
+        round(g2 + (g1 - g2) * t),
+        round(b2 + (b1 - b2) * t),
+    )
 
 
 # ──── 应用 ────
