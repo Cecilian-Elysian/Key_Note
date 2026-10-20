@@ -1,0 +1,11 @@
+<Page
+    x:Class="KeyNote.App.Views.KeyboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="20,16,20,16">
+        <StackPanel Spacing="12">
+            <TextBlock Text="后台" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="3 张 KPI 副卡 + 键型胶囊行 + 7×24 + QWERTY 热力图(P2 数据页)" Style="{StaticResource PageSubTitleStyle}" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

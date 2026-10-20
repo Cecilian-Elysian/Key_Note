@@ -1,0 +1,17 @@
+<Page
+    x:Class="KeyNote.App.Views.StatsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="20,16,20,16">
+        <StackPanel Spacing="12">
+            <TextBlock Text="统计" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="设备行主卡 + 趋势图 + 年度热力图(P2 数据页)" Style="{StaticResource PageSubTitleStyle}" />
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="占位页" Style="{StaticResource CardLabelStyle}" />
+                    <TextBlock Text="—" Style="{StaticResource CardHeroValueStyle}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -57,3 +57,11 @@ htmlcov/
 *.swp
 *.swo
 *~
+
+# C# / .NET (WinUI3 版)
+bin/
+obj/
+.vs/
+*.user
+artifacts/
+publish/

@@ -1,0 +1,66 @@
+<Window
+    x:Class="KeyNote.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="KeyNote">
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 48px 通栏标题栏:标题 + 状态胶囊(P1 接监听状态) -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="10">
+                <TextBlock Text="KeyNote" FontWeight="SemiBold" FontSize="13"
+                           VerticalAlignment="Center" />
+                <Border x:Name="StatusPill" CornerRadius="4" Padding="8,2"
+                        VerticalAlignment="Center" Visibility="Collapsed">
+                    <TextBlock x:Name="StatusPillText" Text="记录中" FontSize="11" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- 左侧导航:5 页,Alt+1~5(P3) -->
+        <NavigationView
+            x:Name="Nav"
+            Grid.Row="1"
+            PaneDisplayMode="Left"
+            OpenPaneLength="160"
+            IsPaneToggleButtonVisible="False"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            IsTitleBarAutoPaddingEnabled="False"
+            SelectionChanged="Nav_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="统计" Tag="stats">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource StatsGlyph}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="后台" Tag="keyboard">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource KeyboardGlyph}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="热力图" Tag="heatmap">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource HeatmapGlyph}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="常用按键" Tag="topkeys">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource TopKeysGlyph}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="设置" Tag="settings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource SettingsGlyph}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <Frame x:Name="ContentFrame" Background="Transparent" />
+        </NavigationView>
+    </Grid>
+</Window>
