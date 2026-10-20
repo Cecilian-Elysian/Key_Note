@@ -1,31 +1,24 @@
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
 # Build artifacts
 build/
 dist/
-install/
 installer/
-*.spec
 *.exe
-portable.flag
 
 # Tooling state (opencode plans / cache)
 .opencode/
 
-# Database
+# Database & user data (隐私,不入库)
 keynote.db
-# Auto-generated SQLite WAL/SHM companions
 keynote.db-wal
 keynote.db-shm
-# Database backups
 backups/
+config.json
 
 # IDE
 .vscode/
 .idea/
+.vs/
+*.user
 
 # OS
 .DS_Store
@@ -36,32 +29,8 @@ desktop.ini
 *.log
 logs/
 
-# Python
-.venv/
-venv/
-.env
-
-# User config (隐私:窗口几何/快捷键等私有数据,不入库)
-config.json
-
-# Test / coverage
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Linter / type checker caches
-.mypy_cache/
-.ruff_cache/
-
-# Editor temp files
-*.swp
-*.swo
-*~
-
-# C# / .NET (WinUI3 版)
+# C# / .NET
 bin/
 obj/
-.vs/
-*.user
 artifacts/
 publish/
