@@ -15,7 +15,6 @@ public sealed partial class StatsPage : Page, IRefreshable
     private const int RangeIdxMonth = 2;
 
     private int _range = RangeIdxMonth;
-    private long _lastValue = -1;
     private string? _fp;
 
     public StatsPage()

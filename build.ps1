@@ -2,16 +2,18 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectRoot
 
 $DistDir = Join-Path $ProjectRoot "dist"
+$PublishDir = Join-Path $ProjectRoot "build\publish"
 $BackupDir = Join-Path $ProjectRoot "build\_data_bak"
 
-# Kill any running KeyNote.exe to release file lock on dist\keynote.db
-$Running = Get-Process -Name "KeyNote" -ErrorAction SilentlyContinue
+# Kill running instance to release file lock
+$Running = Get-Process -Name "KeyNote.App" -ErrorAction SilentlyContinue
 if ($Running) {
-    Write-Host "Killing running KeyNote.exe to release file lock..." -ForegroundColor Yellow
+    Write-Host "Killing running KeyNote.App to release file lock..." -ForegroundColor Yellow
     $Running | Stop-Process -Force
     Start-Sleep -Milliseconds 500
 }
 
+# Preserve user data from previous dist (portable mode) before wiping
 if (Test-Path $DistDir) {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
     $DataFiles = @("keynote.db", "keynote.db-wal", "keynote.db-shm", "config.json")
@@ -24,22 +26,24 @@ if (Test-Path $DistDir) {
 
     Remove-Item -Recurse -Force $DistDir
 }
-$BuildKeyNoteDir = Join-Path $ProjectRoot "build\KeyNote"
-if (Test-Path $BuildKeyNoteDir) { Remove-Item -Recurse -Force $BuildKeyNoteDir }
 
-Write-Host "=== PyInstaller building ==="
-py -m PyInstaller --clean --noconfirm `
-    --onefile --windowed `
-    --name "KeyNote" `
-    --icon "icon.ico" `
-    --add-data "icon.ico;." `
-    --hidden-import pynput.keyboard._win32 `
-    key_note.py
+# Only clean the publish folder; build\_data_bak must survive
+if (Test-Path $PublishDir) { Remove-Item -Recurse -Force $PublishDir }
+
+Write-Host "=== dotnet publish (Release, x64, self-contained) ===" -ForegroundColor Cyan
+dotnet publish "src\KeyNote.App\KeyNote.App.csproj" `
+    -c Release `
+    -p:Platform=x64 `
+    -o $PublishDir `
+    --nologo
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "PyInstaller build failed" -ForegroundColor Red
+    Write-Host "dotnet publish failed" -ForegroundColor Red
     exit 1
 }
+
+New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
+Copy-Item -Path (Join-Path $PublishDir "*") -Destination $DistDir -Recurse -Force
 
 if (Test-Path $BackupDir) {
     $DataFiles = @("keynote.db", "keynote.db-wal", "keynote.db-shm", "config.json")
@@ -53,5 +57,7 @@ if (Test-Path $BackupDir) {
     Write-Host "User data restored" -ForegroundColor Green
 }
 
+$sizeMb = [math]::Round((Get-ChildItem -Recurse $DistDir | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
 Write-Host "=== Build complete ===" -ForegroundColor Green
-Write-Host "EXE: $ProjectRoot\dist\KeyNote.exe"
+Write-Host "DIST: $DistDir ($sizeMb MB)"
+Write-Host "EXE: $DistDir\KeyNote.App.exe"

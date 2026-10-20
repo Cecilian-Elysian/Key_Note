@@ -20,7 +20,7 @@ public sealed partial class GhHeatmapControl : UserControl
     private const double WeekdayLabelW = 30;
     private const double MonthLabelH = 16;
     private const double LegendH = 16;
-    private const double Margin = 6;
+    private const double MarginPx = 6;
     private const double MonthMinGap = 6;
     private const double InterRowGap = 18;
 
@@ -165,11 +165,11 @@ public sealed partial class GhHeatmapControl : UserControl
     private (double ox, double cell, double spacing, double gridW, double gridH, double[] origins, double totalUsed)? ComputeLayout(double w, double h)
     {
         if (w < 100 || h < 60) return null;
-        var availW = w - WeekdayLabelW - 2 * Margin;
+        var availW = w - WeekdayLabelW - 2 * MarginPx;
         var rows = _rowsCount;
         var inter = (rows - 1) * InterRowGap;
         var totalNeeded = rows * MonthLabelH + rows * Rows * CellMin +
-                          (rows * (Rows - 1)) * CellSpacing + inter + LegendH + 2 * Margin;
+                          (rows * (Rows - 1)) * CellSpacing + inter + LegendH + 2 * MarginPx;
         if (availW < 50 || h < totalNeeded / 2) return null;
 
         var maxCols = _subCols.Length > 0 ? _subCols.Max() : TotalCols;
@@ -183,17 +183,17 @@ public sealed partial class GhHeatmapControl : UserControl
             gridW = maxCols * cell + (maxCols - 1) * spacing;
         }
         var gridH = Rows * cell + (Rows - 1) * spacing;
-        var ox = Margin + WeekdayLabelW + Math.Max(0, (availW - gridW) / 2);
+        var ox = MarginPx + WeekdayLabelW + Math.Max(0, (availW - gridW) / 2);
 
         var origins = new double[rows];
-        var curY = Margin;
+        var curY = MarginPx;
         for (var r = 0; r < rows; r++)
         {
             origins[r] = curY + MonthLabelH;
             curY += MonthLabelH + gridH;
             if (r < rows - 1) curY += InterRowGap;
         }
-        var totalUsed = curY + LegendH + Margin;
+        var totalUsed = curY + LegendH + MarginPx;
         return (ox, cell, spacing, gridW, gridH, origins, totalUsed);
     }
 
@@ -245,7 +245,7 @@ public sealed partial class GhHeatmapControl : UserControl
             foreach (var (idx, row) in new[] { (0, 0), (1, 2), (2, 4) })
             {
                 var ty = subOy + row * (cell + spacing) + cell / 2;
-                AddText(cv, CnWeekdays[idx], Margin, ty, UiColors.FgMuted, 10, middleLeft: true);
+                AddText(cv, CnWeekdays[idx], MarginPx, ty, UiColors.FgMuted, 10, middleLeft: true);
             }
 
             DrawMonthLabels(cv, subOx, subOy, cell, spacing, startCol, cols);

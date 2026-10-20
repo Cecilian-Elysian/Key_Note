@@ -45,7 +45,6 @@ public sealed class TrayService : IDisposable
     private nint _wnd;
     private nint _icon;
     private bool _visible;
-    private volatile bool _running;
 
     // ──── 回调(由 App 层接到 UI 线程) ────
     public Action<Action>? UiMarshal { get; set; }
@@ -61,7 +60,6 @@ public sealed class TrayService : IDisposable
     public void Start()
     {
         if (_thread is not null) return;
-        _running = true;
         _thread = new Thread(TrayLoop) { IsBackground = true, Name = "tray" };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
@@ -94,7 +92,6 @@ public sealed class TrayService : IDisposable
 
     public void Stop()
     {
-        _running = false;
         RemoveIcon();
         if (_threadId != 0) PostThreadMessage(_threadId, 0x0012 /* WM_QUIT */, 0, 0);
     }

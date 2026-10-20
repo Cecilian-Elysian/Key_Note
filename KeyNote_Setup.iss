@@ -6,10 +6,12 @@ DefaultDirName={localappdata}\KeyNote
 DefaultGroupName=KeyNote
 OutputDir=installer
 OutputBaseFilename=KeyNote_Setup
-Compression=lzma
+Compression=lzma2/max
 SolidCompression=yes
-UninstallDisplayIcon={app}\KeyNote.exe
+UninstallDisplayIcon={app}\KeyNote.App.exe
 PrivilegesRequired=lowest
+ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64compatible
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -19,18 +21,19 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Name: "autostart"; Description: "开机自动启动 KeyNote"; GroupDescription: "启动选项："; Flags: checkedonce
 
 [Files]
-Source: "dist\KeyNote.exe"; DestDir: "{app}"; Flags: ignoreversion
+; .NET self-contained 发布产物(含 WindowsAppSDK 运行时)
+Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\KeyNote"; Filename: "{app}\KeyNote.exe"
-Name: "{commondesktop}\KeyNote"; Filename: "{app}\KeyNote.exe"; Tasks: desktopicon
+Name: "{group}\KeyNote"; Filename: "{app}\KeyNote.App.exe"
+Name: "{commondesktop}\KeyNote"; Filename: "{app}\KeyNote.App.exe"; Tasks: desktopicon
 Name: "{group}\说明 (README)"; Filename: "{app}\README.md"
 Name: "{group}\卸载 KeyNote"; Filename: "{uninstallexe}"
 
 [Registry]
-; 开机自启（由用户通过安装任务或设置面板控制）
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "KeyNote"; ValueData: """{app}\KeyNote.exe"""; Flags: uninsdeletevalue; Tasks: autostart
+; 开机自启（也可在应用内设置面板开关）
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "KeyNote"; ValueData: """{app}\KeyNote.App.exe"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-Filename: "{app}\KeyNote.exe"; Description: "启动 KeyNote"; Flags: postinstall nowait skipifsilent shellexec
+Filename: "{app}\KeyNote.App.exe"; Description: "启动 KeyNote"; Flags: postinstall nowait skipifsilent shellexec
