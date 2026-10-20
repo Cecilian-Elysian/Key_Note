@@ -88,6 +88,8 @@
 | `build.ps1` | `dotnet publish`(Release/x64/self-contained)→ `dist/` + 用户数据备份恢复 |
 | `KeyNote_Setup.iss` | Inno Setup 安装器(打包 `dist/*`) |
 
+安装包编译:`& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" KeyNote_Setup.iss` → `installer/KeyNote_Setup.exe`(本机 Inno Setup 6 在 `%LOCALAPPDATA%\Programs`,不在 PATH)。
+
 ## 硬约束(违反即不收)
 - 技术栈只允许 `.NET 8 + Windows App SDK`;不引入第二套 UI 框架
 - **不建新工程**;扩功能优先走现有模块(加控件 / 加字段 / 加服务方法)
