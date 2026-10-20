@@ -18,7 +18,7 @@ class HeatmapPage(BasePage):
 
         # ──── 页头(固定):标题 + 副标题 / 刷新按钮 ────
         head = ctk.CTkFrame(self, fg_color="transparent")
-        head.pack(fill="x", padx=16, pady=(12, 0))
+        head.pack(fill="x", padx=20, pady=(16, 0))
         titles = ctk.CTkFrame(head, fg_color="transparent")
         titles.pack(side="left", fill="x", expand=True)
         ctk.CTkLabel(
@@ -31,8 +31,8 @@ class HeatmapPage(BasePage):
         )
         self._sub.pack(anchor="w", pady=(2, 0))
         self._refresh_btn = ctk.CTkButton(
-            head, text="", image=self.app.refresh_icon(),
-            width=28, height=28, corner_radius=theme.RADIUS["md"],
+            head, text="刷新", image=self.app.refresh_icon(), compound="left",
+            width=64, height=28, corner_radius=theme.RADIUS["md"],
             fg_color="transparent", border_width=0,
             hover_color=c.bg_tertiary, command=self._do_refresh,
         )

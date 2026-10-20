@@ -20,7 +20,7 @@ class TopKeysPage(BasePage):
 
         # ──── 页头(固定):标题 + 副标题 / 刷新按钮 ────
         head = ctk.CTkFrame(self, fg_color="transparent")
-        head.pack(fill="x", padx=16, pady=(12, 0))
+        head.pack(fill="x", padx=20, pady=(16, 0))
         titles = ctk.CTkFrame(head, fg_color="transparent")
         titles.pack(side="left", fill="x", expand=True)
         ctk.CTkLabel(
@@ -33,8 +33,8 @@ class TopKeysPage(BasePage):
         )
         self._sub.pack(anchor="w", pady=(2, 0))
         self._refresh_btn = ctk.CTkButton(
-            head, text="", image=self.app.refresh_icon(),
-            width=28, height=28, corner_radius=theme.RADIUS["md"],
+            head, text="刷新", image=self.app.refresh_icon(), compound="left",
+            width=64, height=28, corner_radius=theme.RADIUS["md"],
             fg_color="transparent", border_width=0,
             hover_color=c.bg_tertiary, command=self._do_refresh,
         )
@@ -89,11 +89,22 @@ class TopKeysPage(BasePage):
                 )
             ax.set_xlim(0, mx * 1.14)
         else:
+            # ──── 空态三段式:图标 + 主文案 + 说明(vigil-watt 空态同构) ────
             self._summary.configure(text="")
             ax.text(
-                0.5, 0.5, "还没有记录",
+                0.5, 0.62, "\uE787",
                 transform=ax.transAxes, ha="center", va="center",
-                color=c.fg_muted, fontsize=11,
+                color=c.fg_muted, fontsize=22, fontfamily="Segoe MDL2 Assets",
+            )
+            ax.text(
+                0.5, 0.42, "还没有记录",
+                transform=ax.transAxes, ha="center", va="center",
+                color=c.fg_secondary, fontsize=12,
+            )
+            ax.text(
+                0.5, 0.28, "开始打字后,这里会按次数排出 Top 10",
+                transform=ax.transAxes, ha="center", va="center",
+                color=c.fg_muted, fontsize=10,
             )
             ax.set_axis_off()
         ax.set_facecolor(c.chart_face)
