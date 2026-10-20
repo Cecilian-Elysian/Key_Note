@@ -489,7 +489,7 @@ class App(ctk.CTk):
 
         self._update_pin_btn()
 
-        self._gear_tip = _TopTip(self._settings_btn, lambda: "设置 (Alt+,)")
+        self._gear_tip = _TopTip(self._settings_btn, lambda: "设置 (Alt+5)")
         self._pin_tip = _TopTip(
             self._pin_btn,
             lambda: ("已置顶 (Alt+P 取消)" if self.cfg.get("window_topmost", False)

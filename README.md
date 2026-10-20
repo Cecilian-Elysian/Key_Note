@@ -2,7 +2,7 @@
 
 轻量级 Windows 单机输入统计工具,纯 Python 实现 (`customtkinter` + `matplotlib` + `pynput`)。
 
-紧凑 460×620 窗口、永久暗色主题、无需管理员权限安装。
+紧凑 800×600 窗口、Win11 Mica 材质、永久暗色 Fluent 主题、无需管理员权限安装。
 
 ## 截图(略)
 
@@ -12,9 +12,12 @@
   - 键盘: 字母 / 数字 / 符号 / 修饰键 / 功能键 五类自动分类
   - 鼠标: 左/右/中/X1/X2 五键
   - 80ms 去重窗口,过滤 OS auto-repeat 虚高
-- **2 页界面** (底部 tab 切换,WinUI 暗色 Fluent 视觉)
+- **5 页侧边栏界面** (左侧导航,WinUI 暗色 Fluent 视觉 + Win11 Mica 材质,快捷键 Alt+1~5)
   - **📊 统计页** (`dashboard.py`): 页头(标题 + 副标题 + 刷新) + 时间范围筛选 + KPI 主卡(标签/数值/脚注三层) + 趋势图 + GitHub 风格年度热力图
-  - **🔧 后台页** (`keyboard.py`): 3 张 KPI 副卡(累计按键 / 鼠标点击 / 活跃天数) + 7×24 活跃度热力图 + QWERTY 键盘热力图,各带色阶图例
+  - **⌨️ 后台页** (`keyboard.py`): 3 张 KPI 副卡(累计按键 / 鼠标点击 / 活跃天数) + 7×24 活跃度热力图 + QWERTY 键盘热力图,各带色阶图例
+  - **🔥 热力图页** (`heatmap.py`): 4 张 KPI 统计卡(今日 / 7 日均 / 30 日均 / 累计) + GitHub 风格年度热力图
+  - **⭐ 常用按键页** (`top_keys.py`): Top 10 按键次数横向条形图
+  - **⚙️ 设置页** (`settings.py`): 整页设置面板 + 固定底栏
 - **异步 SQLite** (`db.py`)
   - 队列 + 后台 writer 线程批写,WAL + NORMAL synchronous,长期运行零卡顿
   - 聚合表永久保留 (`agg_minute` / `agg_hour` / `agg_day` / `agg_dow_hour` / `agg_key_total` / `agg_mouse_button_total` / `agg_key_type_total`),毫秒级查询
@@ -132,9 +135,9 @@ key_note/
 ├── settings_panel.py   # 设置面板 (FieldSpec 声明式)
 ├── theme.py            # 设计令牌 (WinUI 暗色 Fluent 色板 + 间距/圆角/字号)
 ├── tray.py             # pystray 系统托盘
-├── window.py           # 主窗口 (2 页 + tab bar + 自动刷新)
+├── window.py           # 主窗口 (侧边栏 + 5 页 + Mica 材质 + 自动刷新)
 ├── ui/
-│   ├── pages/          # 页面: dashboard / keyboard (+ 占位 heatmap/top_keys/settings)
+│   ├── pages/          # 页面: dashboard / keyboard / heatmap / top_keys / settings
 │   └── widgets/        # 组件: gh_heatmap (年度热力图) / chart_utils (matplotlib 工厂)
 ├── build.ps1           # 一键构建脚本
 ├── KeyNote_Setup.iss   # Inno Setup 安装脚本

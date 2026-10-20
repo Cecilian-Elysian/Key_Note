@@ -5,18 +5,24 @@
 - **Windows 单机工具** — pynput 键盘监听 + SQLite 持久化 + customtkinter UI + pystray 托盘
 
 ## 架构约束
-- 主窗口硬编码 `460×620`(逻辑尺寸,DPI 感知下物理像素按缩放系数放大),不响应式
-- 2 页(统计 / 后台),底部 tab bar 切换,默认 Page 1 = 统计
-  - Page 1 `OverviewPage`(`dashboard.py`):页头 + 时间范围筛选 + KPI 主卡 + 趋势图 + GH 年度
+- 主窗口硬编码 `800×600`(逻辑尺寸,DPI 感知下物理像素按缩放系数放大),不响应式
+- 布局:48px 通栏标题栏 + 左侧 160px 侧边栏 + 内容区,切换走 `App._switch_page(name)`
+- 5 页侧边栏导航(Segoe 字形图标 + 药丸选中态 + 左缘 accent 竖条),快捷键 Alt+1~5
+  - Page 1 `OverviewPage`(`dashboard.py`):页头 + 紧凑时间筛选 + KPI 主卡 + 趋势图 + GH 年度
   - Page 2 `KeyboardPage`(`keyboard.py`):3 张 KPI 副卡 + 7×24 + QWERTY 键盘热力图(标签显示为"后台")
-  - 切换走 `App._switch_page(name)`,auto-refresh 只刷新当前页
-- 设置面板通过主窗口顶部 ⚙ 按钮或托盘菜单 `⚙ → SettingsPanel Toplevel` 打开(两入口共用 `settings_panel.open_or_focus()`),而非页面导航
+  - Page 3 `HeatmapPage`(`heatmap.py`):4 张 KPI 统计卡 + 年度热力图
+  - Page 4 `TopKeysPage`(`top_keys.py`):Top 10 按键条形图
+  - Page 5 `SettingsPage`(`settings.py`):整页嵌入 SettingsPanel + 固定底栏(表单不参与 auto-refresh,防覆盖编辑中值)
+- auto-refresh 只刷新当前页(设置页除外)
+- ⚙ 入口(托盘菜单 / 标题栏按钮)统一走 `App._open_settings()` → 唤起窗口 + 切到设置页;`settings_panel.open_or_focus()` 已无调用方,保留备用
+- Win11 Mica 材质(`window.py::MICA` 常量开关):DWM SystemBackdrop + 侧边栏窗格键控透壁纸;标题栏/内容区实底防点击穿透,异常自动回退纯色
 
 ## UI 设计语言(WinUI 暗色 Fluent)
 - 色板 / 间距 / 圆角 / 字号全部来自 `theme.py`:`ColorTokens` + `SPACE` + `RADIUS` + `FONTS`,页面只取不写
 - 卡片语言:`corner_radius=8` + `border_width=1` + `border_color=border` + `fg_color=bg_secondary`
 - KPI 卡三层:标签(12 secondary)/ 数值(22~32 bold)/ 脚注(11 tertiary)
 - 页面骨架:页头(标题 18 + 副标题 12 + 右侧刷新)→ 筛选/副卡 → 内容卡;空数据画三段式空状态
+- 侧边栏:Segoe Fluent/MDL2 字形图标(PIL 渲染,字体缺失回退圆点)+ 文字;Mica 键控区上的按钮一律实底近色(防点击穿透)
 - 设置面板:分组标题带强调色竖条,行内左标题 + 常驻说明 / 右控件,行间 1px 分隔线,底栏固定
 - 新增颜色一律进 `theme.py` 的 dark 令牌;页内专属色仍写模块顶部常量
 
@@ -56,10 +62,13 @@
 ### 5. UI 窗口
 | 文件 | 职责 |
 |---|---|
-| `window.py` | 主窗口 UI(标题栏 + 2 页 + tab bar)+ 自动刷新 + 闲置检测 + 设置回调 |
+| `window.py` | 主窗口 UI(标题栏 + 侧边栏 + 5 页)+ Mica 材质 + 自动刷新 + 闲置检测 + 设置回调 |
 | `ui/pages/base.py` | BasePage 基类 |
 | `ui/pages/dashboard.py` | OverviewPage(Page 1):页头 + 筛选 + KPI 主卡 + 趋势图 + GH 热力图 |
 | `ui/pages/keyboard.py` | KeyboardPage(Page 2):页头 + 3 张 KPI 副卡 + 7×24 + QWERTY 键盘热力图 |
+| `ui/pages/heatmap.py` | HeatmapPage(Page 3):页头 + 4 张 KPI 统计卡 + 年度热力图 |
+| `ui/pages/top_keys.py` | TopKeysPage(Page 4):页头 + Top 10 按键条形图 |
+| `ui/pages/settings.py` | SettingsPage(Page 5):整页嵌入 SettingsPanel + 固定底栏 |
 
 ### 6. 主题系统
 | 文件 | 职责 |
@@ -83,15 +92,15 @@
 | `build.ps1` | PyInstaller (--onefile) + 自动备份/恢复 |
 | `KeyNote_Setup.iss` | Inno Setup 安装器 |
 
-## 死代码(暂不动)
-`ui/pages/{heatmap,top_keys,settings}.py` — 3 个页面,有完整实现但未挂载到 `App._build_ui`,后续可作第 3 页候选恢复。
-`ui/pages/keyboard.py` 是原 `rate.py` 改名 + 内容重写后激活为 Page 2,已不属于死代码。
-`ui/widgets/chart_utils.py` 已从死代码复活(供 dashboard 趋势图复用)。
+## 前死代码,现已全部挂载(2026-10 侧边栏改版)
+`ui/pages/{heatmap,top_keys,settings}.py` — 原 3 个未挂载页面已激活为 Page 3/4/5 并 Fluent 化重写,不再属于死代码。
+`ui/pages/keyboard.py` 是原 `rate.py` 改名 + 内容重写后激活为 Page 2。
+`ui/widgets/chart_utils.py` 已从死代码复活(供 dashboard 趋势图与 top_keys 条形图复用)。
+目前项目内已无未挂载页面。
 
 ## 硬约束(违反即不收)
 - `theme.py` **只有 dark 一套**,不新增亮色 / 第三方主题,页内专属色直接写模块顶部常量;只允许往现有 dark 令牌里加字段(色值 / 间距 / 圆角 / 字号),不加第二套主题
 - **不建新文件**,扩功能优先走现有模块(扩 `FieldSpec` 加字段 / 扩 `tray.py` 加方法 / 扩 `window.py` 加回调分支)
-- **不删死代码**(3 个 ui/pages 占位:`heatmap` / `top_keys` / `settings`),它们是后续页面恢复的占位
 - `build.ps1` 删 PyInstaller 工作目录只删 `build/KeyNote/`,**禁止** `Remove-Item build/`(会把 `build/_data_bak/` 用户备份一起删)
 - `build.ps1` 调 Python 用 `py`(WindowsApps 的 `python.exe` 是占位 stub)
 - `build.ps1` **不写中文字符串**(PowerShell 5.1 解析报错);`KeyNote_Setup.iss` 中文可用(Inno Setup 6 实测通过,2026-09-19)
@@ -106,7 +115,7 @@
 | `settings_panel.py` | 加新字段 → GROUPS 加一行 + config.py 加默认值 + 对应模块加处理逻辑 |
 | `dashboard.py` | 新增图表类型 / 布局微调 / 数据维度扩展 |
 | `theme.py` | **只扩 dark 令牌**(色值 / 间距 / 圆角 / 字号),不加第二套主题 |
-| `window.py` | 加新回调分支处理新配置;扩展第 3 页 |
+| `window.py` | 加新回调分支处理新配置;侧边栏扩页 / Mica 调优 |
 | `tray.py` | 加新菜单项 / 托盘交互优化 |
 | `listener.py` | 加新事件类型(如快捷键组合统计)/ 修饰键追踪 |
 | `db.py` | 新增聚合查询 / 新迁移版本 |
