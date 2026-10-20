@@ -32,7 +32,7 @@ public sealed partial class SettingsPage : Page
             new FieldSpec(FieldKind.Switch, "silent_start", "静默启动", "完全静默启动,无窗口、无托盘通知(适合后台常驻)。"),
             new FieldSpec(FieldKind.Switch, "start_minimized", "启动时最小化", "开机后直接驻留托盘,不弹出主窗口。"),
             new FieldSpec(FieldKind.Switch, "close_to_tray", "关闭窗口到托盘", "点关闭按钮时最小化到托盘而不是退出程序。"),
-            new FieldSpec(FieldKind.Switch, "hide_tray_icon", "隐藏托盘图标", "隐藏系统托盘图标(极致隐身),仅靠热键/重启恢复。", Advanced: true),
+            new FieldSpec(FieldKind.Switch, "hide_tray_icon", "隐藏托盘图标", "隐藏后重启仍保持隐藏;打开主窗口,回到本页关闭此项即可恢复显示。", Advanced: true),
             new FieldSpec(FieldKind.Switch, "listener_enabled", "启动时启动监听", "启动时开启全局键盘监听,关闭后不再记录按键。", Advanced: true),
             new FieldSpec(FieldKind.Switch, "mouse_listener_enabled", "记录鼠标点击", "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数。", Advanced: true),
             new FieldSpec(FieldKind.Number, "idle_pause_min", "闲置自动暂停(分钟)", "无键盘/鼠标活动超过该时长后自动暂停记录,0 = 不暂停。", 0, 240, 1, Advanced: true),
