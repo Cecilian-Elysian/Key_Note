@@ -1,4 +1,4 @@
-"""主窗口模块,460×620 固定尺寸 2 页布局(统计 / 后台)+ 底部 tab bar 切换 + Fluent 标题栏 + 自动刷新 + 闲置检测 + 设置回调"""
+"""主窗口模块,800×600 固定尺寸,左侧边栏导航(Fluent 药丸 + accent 竖条)+ 页面容器 + 通栏标题栏 + 自动刷新 + 闲置检测 + 设置回调"""
 from __future__ import annotations
 
 # ──── 字体适配 ────
@@ -34,8 +34,9 @@ CTK_FONT_CANDIDATES = (
 )
 
 # ──── 窗口尺寸(逻辑 px,DPI 缩放后为物理像素) ────
-WIN_W = 460
-WIN_H = 620
+WIN_W = 800
+WIN_H = 600
+NAV_W = 160
 
 
 def _pick_font() -> Optional[str]:
@@ -77,6 +78,27 @@ def _draw_refresh_icon(colors) -> Image.Image:
     fg = theme.hex_to_rgb(colors.fg_muted)
     d.arc([(9, 9), (23, 23)], start=35, end=300, fill=fg, width=2)
     d.polygon([(22, 5), (25, 13), (16, 12)], fill=fg)
+    return img
+
+
+def _draw_nav_glyph(colors, char: str) -> Image.Image:
+    """Segoe Fluent/MDL2 字形渲染成 32×32 图标,字体缺失时画圆点占位。"""
+    from PIL import ImageFont
+
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    fg = theme.hex_to_rgb(colors.fg_secondary)
+    font = None
+    for name in ("segfluent.ttf", "segmdl2.ttf"):
+        try:
+            font = ImageFont.truetype(name, 20)
+            break
+        except Exception:
+            continue
+    if font is not None:
+        d.text((16, 17), char, font=font, fill=fg, anchor="mm")
+    else:
+        d.ellipse([(11, 11), (21, 21)], outline=fg, width=2)
     return img
 
 
@@ -147,13 +169,14 @@ class _TopTip:
 class App(ctk.CTk):
     PAGE_OVERVIEW = "overview"
     PAGE_KEYBOARD = "keyboard"
+    PAGE_SETTINGS = "settings"
 
     def __init__(self):
         super().__init__()
         self.cfg = config.load()
         theme.apply_theme()
 
-        # ──── DPI 缩放系数(逻辑 400×550 不变,物理像素按屏放大) ────
+        # ──── DPI 缩放系数(逻辑 800×600 不变,物理像素按屏放大) ────
         self._ui_scale = 1.0
         try:
             self._ui_scale = max(
@@ -185,7 +208,6 @@ class App(ctk.CTk):
         plt.rcParams["axes.unicode_minus"] = False
 
         self._refresh_after_id: Optional[str] = None
-        self._indicator_after_id: Optional[str] = None
         self._last_keypress_mono: float = 0.0
         self._was_paused_by_idle: bool = False
 
@@ -254,7 +276,7 @@ class App(ctk.CTk):
         self.maxsize(w, h)
 
     def _clamp_window_size(self) -> None:
-        """将窗口尺寸锁定到逻辑 460×620(按 DPI 换算物理像素),保留原位置。"""
+        """将窗口尺寸锁定到逻辑 800×600(按 DPI 换算物理像素),保留原位置。"""
         w = round(WIN_W * self._ui_scale)
         h = round(WIN_H * self._ui_scale)
         try:
@@ -329,29 +351,29 @@ class App(ctk.CTk):
         self.bind("<Alt-comma>", lambda _e: self._open_settings())
         self.bind("<Alt-Key-p>", lambda _e: self._toggle_topmost())
 
-    # ──── UI 构建(grid 四段:标题栏 / 内容 / 分隔线 / tab bar) ────
+    # ──── UI 构建(grid:标题栏通栏 / 左侧边栏 + 竖分隔线 + 内容区) ────
     def _build_ui(self) -> None:
         c = theme.current().colors
         s = self._ui_scale
         self.configure(fg_color=c.bg_primary)
 
-        self.grid_rowconfigure(0, minsize=round(40 * s))
+        self.grid_rowconfigure(0, minsize=round(48 * s))
         self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, minsize=1)
-        self.grid_rowconfigure(3, minsize=round(44 * s))
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, minsize=round(NAV_W * s))
+        self.grid_columnconfigure(1, minsize=1)
+        self.grid_columnconfigure(2, weight=1)
 
-        # row 0: 标题栏(Fluent 风格:标题 + 状态胶囊 / 右侧图标按钮)
-        top = ctk.CTkFrame(self, height=round(40 * s), fg_color=c.bg_primary)
+        # row 0: 通栏标题栏(Fluent 风格:标题 + 状态胶囊 / 右侧图标按钮)
+        top = ctk.CTkFrame(self, height=round(48 * s), fg_color=c.bg_primary)
         self._top = top
-        top.grid(row=0, column=0, sticky="ew")
+        top.grid(row=0, column=0, columnspan=3, sticky="ew")
         top.pack_propagate(False)
 
         ctk.CTkFrame(top, height=1, fg_color=c.divider).pack(side="bottom", fill="x")
 
         ctk.CTkLabel(
             top, text="KeyNote", text_color=c.fg_primary, font=("", 13, "bold")
-        ).pack(side="left", padx=(14, 10), pady=6)
+        ).pack(side="left", padx=(16, 10), pady=6)
 
         self._status_pill = ctk.CTkFrame(
             top, fg_color=c.bg_tertiary, corner_radius=theme.RADIUS["md"]
@@ -360,10 +382,10 @@ class App(ctk.CTk):
         self.status_lbl = ctk.CTkLabel(
             self._status_pill, text="● 记录中", text_color=c.success, font=("", 11)
         )
-        self.status_lbl.pack(padx=8, pady=2)
+        self.status_lbl.pack(padx=8, pady=3)
 
         right = ctk.CTkFrame(top, fg_color="transparent")
-        right.pack(side="right", padx=8, pady=6)
+        right.pack(side="right", padx=10, pady=6)
 
         self._pin_icon_normal = ctk.CTkImage(
             light_image=_draw_pin_icon(c, active=False),
@@ -415,9 +437,19 @@ class App(ctk.CTk):
         self._pin_btn.bind("<Enter>", lambda _e: self._pin_tip.schedule_show())
         self._pin_btn.bind("<Leave>", lambda _e: self._pin_tip.hide())
 
-        # row 1: body(当前页面)
+        # col 0 row 1: 侧边栏导航
+        sidebar = ctk.CTkFrame(self, fg_color=c.bg_primary)
+        self._sidebar = sidebar
+        sidebar.grid(row=1, column=0, sticky="nsew")
+
+        # col 1 row 1: 侧边栏与内容区之间的竖分隔线
+        ctk.CTkFrame(self, width=1, fg_color=c.divider).grid(
+            row=1, column=1, sticky="ns"
+        )
+
+        # col 2 row 1: 内容区(当前页面)
         self._body = ctk.CTkFrame(self, fg_color=c.bg_primary)
-        self._body.grid(row=1, column=0, sticky="nsew")
+        self._body.grid(row=1, column=2, sticky="nsew")
 
         from ui.pages.dashboard import OverviewPage
         from ui.pages.keyboard import KeyboardPage
@@ -425,38 +457,59 @@ class App(ctk.CTk):
         self._pages[self.PAGE_OVERVIEW] = OverviewPage(self._body, self)
         self._pages[self.PAGE_KEYBOARD] = KeyboardPage(self._body, self)
 
-        # row 2: 标题栏与 tab bar 之间的分隔线
-        ctk.CTkFrame(self, height=1, fg_color=c.divider).grid(
-            row=2, column=0, sticky="ew"
+        self._build_nav(sidebar)
+
+    # ──── 侧边栏导航(药丸选中态 + 左缘 accent 竖条) ────
+    def _build_nav(self, sidebar) -> None:
+        c = theme.current().colors
+        self._nav_icons: dict = {}
+        items = (
+            (self.PAGE_OVERVIEW, "统计", "\uE9D2"),
+            (self.PAGE_KEYBOARD, "后台", "\uE765"),
+            ("settings", "设置", "\uE713"),
         )
-
-        # row 3: nav bar
-        nav = ctk.CTkFrame(self, height=round(44 * s), fg_color=c.bg_primary)
-        self._nav = nav
-        nav.grid(row=3, column=0, sticky="ew")
-        nav.grid_rowconfigure(0, minsize=round(44 * s))
-        nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")
-
-        tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "后台")]
-        for col, (name, label) in enumerate(tabs):
-            btn = ctk.CTkButton(
-                nav, text=label,
-                fg_color="transparent",
-                text_color=c.fg_muted,
-                hover_color=c.bg_tertiary,
-                font=("", 12, "bold"),
-                corner_radius=theme.RADIUS["md"],
-                border_width=0,
-                command=lambda n=name: self._switch_page(n),
+        for name, label, char in items:
+            icon = ctk.CTkImage(
+                light_image=_draw_nav_glyph(c, char),
+                dark_image=_draw_nav_glyph(c, char),
+                size=(16, 16),
             )
-            btn.grid(row=0, column=col, padx=12, pady=6, sticky="nsew")
+            self._nav_icons[name] = icon
+            if name == self.PAGE_SETTINGS and self.PAGE_SETTINGS not in self._pages:
+                cmd = self._open_settings
+            else:
+                cmd = lambda n=name: self._switch_page(n)
+            btn = ctk.CTkButton(
+                sidebar, text=label, image=icon, compound="left",
+                anchor="w", border_spacing=10,
+                height=36, corner_radius=theme.RADIUS["md"],
+                fg_color="transparent", hover_color=c.bg_tertiary,
+                text_color=c.fg_secondary, border_width=0,
+                font=("", 13), command=cmd,
+            )
+            btn.pack(fill="x", padx=8, pady=2)
             self._nav_buttons[name] = btn
 
-        # 激活 tab 底边滑动指示条
-        self._nav_indicator = ctk.CTkFrame(
-            nav, height=3, width=48, corner_radius=2, fg_color=c.accent
+        # 左缘 accent 竖条(选中项指示,首次布局完成后放置)
+        self._nav_bar = ctk.CTkFrame(
+            sidebar, width=3, height=20, corner_radius=2, fg_color=c.accent
         )
-        nav.bind("<Configure>", lambda _e: self._move_indicator(animate=False))
+
+    def _move_nav_bar(self) -> None:
+        btn = self._nav_buttons.get(self._current_page_name)
+        bar = getattr(self, "_nav_bar", None)
+        if btn is None or bar is None:
+            return
+        try:
+            if btn.winfo_height() < 10:
+                # 冷启动尚未完成布局:放置成功前每 50ms 重试
+                self.after(50, self._move_nav_bar)
+                return
+            y = btn.winfo_y() + max(0, (btn.winfo_height() - 20) // 2)
+            bar.place(in_=self._sidebar, x=0, y=y)
+            bar.lift()
+        except Exception:
+            pass
 
     # ──── 页头刷新按钮图标(供各页面复用) ────
     def refresh_icon(self) -> ctk.CTkImage:
@@ -500,74 +553,12 @@ class App(ctk.CTk):
             is_active = (n == name)
             try:
                 btn.configure(
-                    text_color=(c.accent if is_active else c.fg_muted),
+                    text_color=(c.fg_primary if is_active else c.fg_secondary),
                     fg_color=(c.bg_tertiary if is_active else "transparent"),
                 )
             except Exception:
                 pass
-        self._move_indicator(animate=True)
-
-    # ──── nav 滑动指示条 ────
-    def _cancel_indicator_anim(self) -> None:
-        aid = getattr(self, "_indicator_after_id", None)
-        if aid is not None:
-            try:
-                self.after_cancel(aid)
-            except Exception:
-                pass
-            self._indicator_after_id = None
-
-    def _move_indicator(self, animate: bool = True) -> None:
-        btn = self._nav_buttons.get(self._current_page_name)
-        ind = getattr(self, "_nav_indicator", None)
-        if btn is None or ind is None:
-            return
-        bw = btn.winfo_width()
-        if bw < 10:
-            # 冷启动尚未完成布局:放置成功前每 50ms 重试(animate=False 快速定位)
-            if not getattr(self, "_ind_placed", False):
-                self._indicator_after_id = self.after(
-                    50, lambda: self._move_indicator(animate=False)
-                )
-            return
-        ind_w = max(24, bw - 24)
-        try:
-            ind.configure(width=ind_w)
-        except Exception:
-            pass
-        target_x = btn.winfo_x() + max(0, (bw - ind_w) // 2)
-        nav_h = self._nav.winfo_height()
-        target_y = max(0, nav_h - 3)
-
-        def _place(x: int) -> None:
-            ind.place(in_=self._nav, x=x, y=target_y)
-            ind.lift()
-            self._ind_placed = True
-
-        if not animate:
-            self._cancel_indicator_anim()
-            _place(target_x)
-            return
-        try:
-            cur_x = ind.winfo_x()
-        except Exception:
-            cur_x = target_x
-        if abs(cur_x - target_x) < 2:
-            self._cancel_indicator_anim()
-            _place(target_x)
-            return
-        self._cancel_indicator_anim()
-        steps = 8
-
-        def _step(i: int = 0, frm: int = cur_x, to: int = target_x) -> None:
-            t = (i + 1) / steps
-            _place(round(frm + (to - frm) * (t * (2 - t))))
-            if i + 1 < steps:
-                self._indicator_after_id = self.after(16, lambda: _step(i + 1))
-            else:
-                self._indicator_after_id = None
-
-        self._indicator_after_id = self.after(16, lambda: _step())
+        self._move_nav_bar()
 
     def current_page_name(self) -> str:
         return self._current_page_name
