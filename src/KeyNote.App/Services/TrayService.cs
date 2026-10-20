@@ -149,10 +149,12 @@ public sealed class TrayService : IDisposable
             {
                 if (_icon != IntPtr.Zero) DestroyIcon(_icon);
                 _icon = data.hIcon;
+                _visible = true;
             }
             else
             {
                 if (data.hIcon != IntPtr.Zero) DestroyIcon(data.hIcon);
+                _visible = false;
                 CrashLog.Write("tray.add", message:
                     $"NIM_ADD failed err={Marshal.GetLastWin32Error()} wnd=0x{_wnd.ToInt64():X}");
             }
@@ -165,18 +167,21 @@ public sealed class TrayService : IDisposable
 
     private void RemoveIcon()
     {
-        if (_icon == IntPtr.Zero) return;
-        try
+        if (_icon != IntPtr.Zero)
         {
-            var data = NotifyIconData();
-            Shell_NotifyIconW(0x02 /* NIM_DELETE */, ref data);
+            try
+            {
+                var data = NotifyIconData();
+                Shell_NotifyIconW(0x02 /* NIM_DELETE */, ref data);
+            }
+            catch
+            {
+                // 忽略
+            }
+            DestroyIcon(_icon);
+            _icon = IntPtr.Zero;
         }
-        catch
-        {
-            // 忽略
-        }
-        DestroyIcon(_icon);
-        _icon = IntPtr.Zero;
+        _visible = false;
     }
 
     private nint LoadTrayIcon()
