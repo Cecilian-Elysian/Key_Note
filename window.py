@@ -1,9 +1,10 @@
-"""主窗口模块,800×600 固定尺寸,左侧边栏导航(Fluent 药丸 + accent 竖条)+ 页面容器 + 通栏标题栏 + 自动刷新 + 闲置检测 + 设置回调"""
+"""主窗口模块,800×600 固定尺寸,左侧边栏导航(Fluent 药丸 + accent 竖条)+ 页面容器 + 通栏标题栏 + Mica 材质 + 自动刷新 + 闲置检测 + 设置回调"""
 from __future__ import annotations
 
 # ──── 字体适配 ────
 
 from datetime import datetime
+import sys
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
@@ -37,6 +38,10 @@ CTK_FONT_CANDIDATES = (
 WIN_W = 800
 WIN_H = 600
 NAV_W = 160
+
+# ──── Mica 材质(Win11 best-effort,异常/旧系统自动回退纯色;置 False 一键关闭) ────
+MICA = True
+MICA_MAGIC = "#1D1D1D"  # 透明键控色,与 bg_primary 仅差一档,文字抗锯齿边缘无色差
 
 
 def _pick_font() -> Optional[str]:
@@ -232,6 +237,7 @@ class App(ctk.CTk):
         self._bind_shortcuts()
         self._apply_mouse_listener_setting()
         self._set_window_icon()
+        self._apply_backdrop()
 
     @property
     def ui_scale(self) -> float:
@@ -316,6 +322,59 @@ class App(ctk.CTk):
     def _set_window_icon(self) -> None:
         try:
             self.iconbitmap(str(config.icon_path()))
+        except Exception:
+            pass
+
+    # ──── Mica 材质(侧边栏/页面壳层键控透明,标题栏保不透明可拖拽) ────
+    def _apply_backdrop(self) -> None:
+        if not MICA:
+            return
+        try:
+            import ctypes
+            if sys.getwindowsversion().build < 22621:
+                return
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            if not hwnd:
+                hwnd = self.winfo_id()
+            mica = ctypes.c_int(2)  # DWMSBT_MAINWINDOW
+            if ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 38, ctypes.byref(mica), 4
+            ) != 0:
+                return
+            self.configure(fg_color=MICA_MAGIC)
+            self.attributes("-transparentcolor", MICA_MAGIC)
+            self._mica_on = True
+            # 仅侧边栏窗格键控(NavigationView 观感):内容区保持实底,
+            # 避免透明底按钮在 Mica 上留下实色块
+            self._mica_tint(self._sidebar)
+        except Exception:
+            self._mica_on = False
+
+    def _mica_tint(self, pane) -> None:
+        """把侧边栏窗格染成键控色;窗格上的按钮一律实底近色,防按钮体点击穿透。"""
+        solid = theme.current().colors.bg_primary
+
+        def walk(w) -> None:
+            for ch in w.winfo_children():
+                cls = type(ch).__name__
+                if "ScrollableFrame" in cls or isinstance(
+                    ch, (tk.Canvas, ctk.CTkCanvas)
+                ):
+                    continue
+                try:
+                    fg = ch.cget("fg_color")
+                    if isinstance(ch, ctk.CTkButton):
+                        if fg == "transparent" or fg == solid:
+                            ch.configure(fg_color=solid)
+                    elif fg == solid:
+                        ch.configure(fg_color=MICA_MAGIC)
+                except Exception:
+                    pass
+                walk(ch)
+
+        walk(pane)
+        try:
+            pane.configure(fg_color=MICA_MAGIC)
         except Exception:
             pass
 
@@ -483,7 +542,7 @@ class App(ctk.CTk):
                 sidebar, text=label, image=icon, compound="left",
                 anchor="w", border_spacing=10,
                 height=36, corner_radius=theme.RADIUS["md"],
-                fg_color="transparent", hover_color=c.bg_tertiary,
+                fg_color=c.bg_primary, hover_color=c.bg_tertiary,
                 text_color=c.fg_secondary, border_width=0,
                 font=("", 13), command=cmd,
             )
@@ -554,7 +613,9 @@ class App(ctk.CTk):
             try:
                 btn.configure(
                     text_color=(c.fg_primary if is_active else c.fg_secondary),
-                    fg_color=(c.bg_tertiary if is_active else "transparent"),
+                    # 未选中用实底近色而非 transparent:侧边栏在 Mica 下被键控,
+                    # transparent 会让按钮体随底色一起点击穿透
+                    fg_color=(c.bg_tertiary if is_active else c.bg_primary),
                 )
             except Exception:
                 pass
