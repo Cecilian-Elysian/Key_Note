@@ -30,6 +30,15 @@ _MOUSE_BTN_CN = {
     "x2": "侧键 2",
 }
 
+# ──── 键型分布胶囊(页内专属色,vigil-watt 徽标同款语义色) ────
+_TYPE_META = {
+    "letter": ("字母", "#0A84FF"),
+    "digit": ("数字", "#34C759"),
+    "symbol": ("符号", "#FAAA17"),
+    "modifier": ("修饰键", "#BF5AF2"),
+    "function": ("功能键", "#8E8E93"),
+}
+
 
 # ──── 颜色工具 ────
 def _lerp_color(c0: tuple, c1: tuple, t: float) -> str:
@@ -86,7 +95,7 @@ class KeyboardPage(BasePage):
 
         # ──── 页头(固定):标题 + 副标题 / 刷新按钮 ────
         head = ctk.CTkFrame(self, fg_color="transparent")
-        head.pack(fill="x", padx=16, pady=(12, 10))
+        head.pack(fill="x", padx=20, pady=(16, 10))
         titles = ctk.CTkFrame(head, fg_color="transparent")
         titles.pack(side="left", fill="x", expand=True)
         self._page_title = ctk.CTkLabel(
@@ -99,8 +108,8 @@ class KeyboardPage(BasePage):
         )
         self._page_sub.pack(anchor="w", pady=(2, 0))
         self._refresh_btn = ctk.CTkButton(
-            head, text="", image=self.app.refresh_icon(),
-            width=28, height=28, corner_radius=theme.RADIUS["md"],
+            head, text="刷新", image=self.app.refresh_icon(), compound="left",
+            width=64, height=28, corner_radius=theme.RADIUS["md"],
             fg_color="transparent", border_width=0,
             hover_color=c.bg_tertiary, command=self._on_refresh_click,
         )
@@ -116,7 +125,7 @@ class KeyboardPage(BasePage):
 
         # ──── 3 张 KPI 副卡 ────
         kpi_row = ctk.CTkFrame(scroll, fg_color="transparent")
-        kpi_row.pack(fill="x", padx=12, pady=(0, 10))
+        kpi_row.pack(fill="x", padx=16, pady=(0, 10))
         kpi_row.columnconfigure((0, 1, 2), weight=1, uniform="kpi")
         self._sub: dict[str, ctk.CTkLabel] = {}
         self._sub_foot: dict[str, ctk.CTkLabel] = {}
@@ -148,6 +157,18 @@ class KeyboardPage(BasePage):
             self._sub[key] = val
             self._sub_foot[key] = foot
 
+        # ──── 键型分布胶囊行(vigil-watt 徽标同款;初始不打包,有数据才上屏) ────
+        self._type_pill_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        self._type_pills: dict[str, ctk.CTkLabel] = {}
+        for t_key in _TYPE_META:
+            pill = ctk.CTkLabel(
+                self._type_pill_row, text="", corner_radius=4,
+                font=theme.FONTS["caption"], height=22,
+            )
+            pill.pack(side="left", padx=(0, 6), pady=1)
+            self._type_pills[t_key] = pill
+        self._type_fp: tuple | None = None
+
         # ──── 7×24 小时热力图卡 ────
         h_card = ctk.CTkFrame(
             scroll, fg_color=c.bg_secondary,
@@ -155,6 +176,7 @@ class KeyboardPage(BasePage):
             border_width=1, border_color=c.border,
         )
         h_card.pack(fill="x", padx=16, pady=(0, 10))
+        self._h_card = h_card
         h_head = ctk.CTkFrame(h_card, fg_color="transparent")
         h_head.pack(fill="x", padx=14, pady=(10, 0))
         self._h_title_lbl = ctk.CTkLabel(
@@ -236,6 +258,11 @@ class KeyboardPage(BasePage):
             pass
 
         try:
+            self._update_type_pills()
+        except Exception:
+            pass
+
+        try:
             grid = db.heatmap_data(7)
             if grid is not None and grid.size > 0:
                 fp = grid.tobytes()
@@ -262,6 +289,29 @@ class KeyboardPage(BasePage):
                 self._draw_keyboard()
         except Exception:
             pass
+
+    def _update_type_pills(self) -> None:
+        """键型分布胶囊:彩字 + 16% tint 底(vigil-watt 徽标同款);无数据整行隐藏。"""
+        rows = {str(t): int(n) for t, n in db.key_type_distribution()}
+        total = sum(rows.values())
+        fp = tuple(sorted(rows.items()))
+        if fp == self._type_fp:
+            return
+        self._type_fp = fp
+        if total <= 0:
+            self._type_pill_row.pack_forget()
+            return
+        c = theme.current().colors
+        self._type_pill_row.pack(
+            fill="x", padx=16, pady=(0, 10), before=self._h_card
+        )
+        for t_key, (name, color) in _TYPE_META.items():
+            pct = round(rows.get(t_key, 0) / total * 100)
+            self._type_pills[t_key].configure(
+                text=f" {name} {pct}% ",
+                text_color=color,
+                fg_color=theme.mix_hex(color, c.bg_primary, 0.16),
+            )
 
     def _update_sub_foots(self) -> None:
         """副卡脚注:今日新增 / 鼠标主键占比 / 统计窗口。"""
@@ -313,6 +363,32 @@ class KeyboardPage(BasePage):
 
         peak = int(grid.max()) if grid.size else 0
         total = int(grid.sum())
+
+        # ──── 空态三段式:图标 + 主文案 + 说明(vigil-watt 空态同构) ────
+        if total <= 0:
+            self._h_layout = None
+            self._h_grid = None
+            needed = round(120 * s)
+            if abs(h - needed) > 2:
+                cv.configure(height=needed)
+            cx, cy = w / 2, h / 2
+            cv.create_text(
+                cx, cy - round(30 * s), text="\uE787",
+                fill=c.fg_muted, font=("Segoe MDL2 Assets", 22),
+            )
+            cv.create_text(
+                cx, cy + round(6 * s), text="近 7 天还没有记录",
+                fill=c.fg_secondary, font=("", 12),
+            )
+            cv.create_text(
+                cx, cy + round(26 * s), text="开始打字后,这里会按小时点亮",
+                fill=c.fg_muted, font=("", 10),
+            )
+            try:
+                self._h_summary_lbl.configure(text="")
+            except Exception:
+                pass
+            return
 
         margin_x = round(24 * s)
         cols = 24
@@ -370,12 +446,6 @@ class KeyboardPage(BasePage):
             [c.heatmap_empty, c.heatmap_l1, c.heatmap_l2, c.heatmap_l3, c.heatmap_l4],
             s,
         )
-
-        if total <= 0:
-            cv.create_text(
-                ox + grid_w / 2, oy + grid_h / 2, text="近 7 天还没有记录",
-                fill=c.fg_muted, font=("", 10),
-            )
 
         try:
             active = int((grid > 0).sum())
@@ -538,6 +608,15 @@ class KeyboardPage(BasePage):
                 self._kb_card.configure(
                     fg_color=c.bg_secondary, border_color=c.border
                 )
+            if hasattr(self, "_h_card"):
+                self._h_card.configure(
+                    fg_color=c.bg_secondary, border_color=c.border
+                )
+            try:
+                self._type_fp = None
+                self._update_type_pills()
+            except Exception:
+                pass
             self._kb_title_lbl.configure(text_color=c.fg_primary)
             self._kb_legend.configure(text_color=c.fg_muted)
             self._h_title_lbl.configure(text_color=c.fg_primary)
