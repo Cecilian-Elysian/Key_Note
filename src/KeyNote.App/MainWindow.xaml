@@ -10,19 +10,22 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 48px 通栏标题栏:标题 + 状态胶囊(P1 接监听状态) -->
+        <!-- 48px 通栏标题栏:标题 + 状态胶囊 -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="10">
                 <TextBlock Text="KeyNote" FontWeight="SemiBold" FontSize="13"
                            VerticalAlignment="Center" />
                 <Border x:Name="StatusPill" CornerRadius="4" Padding="8,2"
                         VerticalAlignment="Center" Visibility="Collapsed">
-                    <TextBlock x:Name="StatusPillText" Text="记录中" FontSize="11" />
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse x:Name="StatusDot" Width="6" Height="6" VerticalAlignment="Center" />
+                        <TextBlock x:Name="StatusPillText" Text="记录中" FontSize="11" />
+                    </StackPanel>
                 </Border>
             </StackPanel>
         </Grid>
 
-        <!-- 左侧导航:5 页,Alt+1~5(P3) -->
+        <!-- 左侧导航:5 页 -->
         <NavigationView
             x:Name="Nav"
             Grid.Row="1"

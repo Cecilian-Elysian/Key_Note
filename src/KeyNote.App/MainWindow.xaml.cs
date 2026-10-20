@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using KeyNote.Core.Storage;
+using KeyNote.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -26,6 +28,16 @@ public sealed partial class MainWindow : Window
 
         ContentFrame.Navigate(typeof(Views.StatsPage));
         Nav.SelectedItem = Nav.MenuItems[0];
+
+        // 关闭窗口 → 最小化到托盘
+        AppWindow.Closing += (_, args) =>
+        {
+            if (App.Instance.Settings.CloseToTray && !App.Instance.IsQuitting)
+            {
+                args.Cancel = true;
+                AppWindow.Hide();
+            }
+        };
     }
 
     // ──── 材质:Mica → Acrylic → 纯色(有材质时 Root 必须无底色,否则盖住) ────
@@ -98,6 +110,77 @@ public sealed partial class MainWindow : Window
         if (ContentFrame.CurrentSourcePageType != page)
         {
             ContentFrame.Navigate(page);
+        }
+    }
+
+    /// 切到指定页(托盘⚙入口用)
+    public void NavigateTo(string tag)
+    {
+        foreach (var item in Nav.MenuItems)
+        {
+            if (item is NavigationViewItem nvi && nvi.Tag is string t && t == tag)
+            {
+                Nav.SelectedItem = nvi;
+                return;
+            }
+        }
+    }
+
+    /// 唤起主窗口(托盘点击)
+    public void ShowMainWindow()
+    {
+        try
+        {
+            AppWindow.Show();
+            Activate();
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.show", ex);
+        }
+    }
+
+    /// 标题栏状态胶囊:记录中 / 已暂停
+    public void UpdateStatus(bool recording)
+    {
+        try
+        {
+            var color = recording ? UiPalette.Good : UiPalette.Offline;
+            StatusPill.Visibility = Visibility.Visible;
+            StatusPill.Background = new SolidColorBrush(UiPalette.Tint(color));
+            StatusPillText.Text = recording ? "记录中" : "已暂停";
+            StatusPillText.Foreground = new SolidColorBrush(color);
+            StatusDot.Fill = new SolidColorBrush(color);
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.status", ex);
+        }
+    }
+
+    public void RunBackup()
+    {
+        try
+        {
+            var path = KeyNoteDb.Backup(App.Instance.Settings);
+            App.Instance.Tray.Notify(path is null ? "备份失败" : $"已备份: {System.IO.Path.GetFileName(path)}");
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.backup", ex);
+        }
+    }
+
+    public void RunVacuum()
+    {
+        try
+        {
+            var ok = KeyNoteDb.Vacuum();
+            App.Instance.Tray.Notify(ok ? "VACUUM 完成" : "VACUUM 失败");
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.vacuum", ex);
         }
     }
 
