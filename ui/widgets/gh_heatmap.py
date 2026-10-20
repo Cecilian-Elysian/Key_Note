@@ -74,8 +74,8 @@ class GhHeatmapWidget(ctk.CTkFrame):
         header.pack(fill="x", padx=2, pady=(0, 4))
         self._title_lbl = ctk.CTkLabel(
             header,
-            text=f"过去 {self._days} 天 · 每日按键贡献",
-            font=("", 11, "bold"),
+            text=f"过去 {self._days} 天 · 每日贡献",
+            font=theme.FONTS["card_title"],
             text_color=c.fg_primary,
             anchor="w",
         )
@@ -83,14 +83,14 @@ class GhHeatmapWidget(ctk.CTkFrame):
         self._summary_lbl = ctk.CTkLabel(
             header,
             text="",
-            font=("", 10),
+            font=theme.FONTS["footnote"],
             text_color=c.fg_muted,
             anchor="e",
         )
         self._summary_lbl.pack(side="right")
 
         self._canvas = tk.Canvas(
-            self, bg=c.bg_primary, highlightthickness=0, bd=0
+            self, bg=c.bg_secondary, highlightthickness=0, bd=0
         )
         self._canvas.pack(fill="both", expand=True, padx=2, pady=2)
         self._canvas.bind("<Configure>", self._on_resize)
@@ -135,7 +135,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         active = sum(1 for v in self._daily_values if v > 0)
         max_val = max(self._daily_values) if self._daily_values else 0
         self._summary_lbl.configure(
-            text=f"活跃 {active}/{self._days} 天 · 最高 {max_val:,} · 合计 {total:,}"
+            text=f"活跃 {active}/{self._days} · 峰值 {max_val:,}"
         )
 
         import sys as _sys, os as _os
@@ -174,7 +174,7 @@ class GhHeatmapWidget(ctk.CTkFrame):
         try:
             self._title_lbl.configure(text_color=c.fg_primary)
             self._summary_lbl.configure(text_color=c.fg_muted)
-            self._canvas.configure(bg=c.bg_primary)
+            self._canvas.configure(bg=c.bg_secondary)
         except Exception:
             pass
         if self._tooltip is not None:

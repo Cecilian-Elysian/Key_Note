@@ -70,7 +70,7 @@ DARK = Theme(
         divider="#2F2F2F",
         chart_face="#272727",
         chart_line="#0A84FF",
-        heatmap_empty="#2A2A2A",
+        heatmap_empty="#303030",
         heatmap_l1="#0E4429",
         heatmap_l2="#006D32",
         heatmap_l3="#26A641",
@@ -105,7 +105,8 @@ RADIUS = {
 # ──── 字号(字体族留空,跟随应用默认字体) ────
 FONTS = {
     "page_title": ("", 18, "bold"),
-    "card_title": ("", 15, "bold"),
+    "section_title": ("", 15, "bold"),
+    "card_title": ("", 13, "bold"),
     "row_title": ("", 14),
     "body": ("", 13),
     "label": ("", 12),
