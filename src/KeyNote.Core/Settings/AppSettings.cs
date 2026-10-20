@@ -80,7 +80,7 @@ public sealed class AppSettings
         var s = new AppSettings();
         foreach (var (k, v) in Defaults)
         {
-            s._data[k] = JsonValue.Create(v);
+            s._data[k] = JsonValue.Create(v)!;
         }
         return s;
     }

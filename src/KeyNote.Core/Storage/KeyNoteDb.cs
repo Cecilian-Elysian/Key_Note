@@ -712,7 +712,7 @@ public static class KeyNoteDb
             using (var bck = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dest }.ToString()))
             {
                 bck.Open();
-                _conn.BackupDatabase(bck);
+                _conn!.BackupDatabase(bck);
             }
             PruneOldBackups(Math.Max(0, cfg.GetInt("backup_keep_daily", 7)), Math.Max(0, cfg.GetInt("backup_keep_weekly", 4)));
             return dest;
