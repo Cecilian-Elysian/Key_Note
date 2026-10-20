@@ -1,5 +1,8 @@
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text;
+using KeyNote.App.Theme;
 using KeyNote.Core.Storage;
 using KeyNote.Core.Utils;
 
@@ -144,10 +147,12 @@ public sealed class TrayService : IDisposable
             var ok = Shell_NotifyIconW(0x00 /* NIM_ADD */, ref data);
             if (ok)
             {
+                if (_icon != IntPtr.Zero) DestroyIcon(_icon);
                 _icon = data.hIcon;
             }
             else
             {
+                if (data.hIcon != IntPtr.Zero) DestroyIcon(data.hIcon);
                 CrashLog.Write("tray.add", message:
                     $"NIM_ADD failed err={Marshal.GetLastWin32Error()} wnd=0x{_wnd.ToInt64():X}");
             }
@@ -170,6 +175,7 @@ public sealed class TrayService : IDisposable
         {
             // 忽略
         }
+        DestroyIcon(_icon);
         _icon = IntPtr.Zero;
     }
 
@@ -178,7 +184,39 @@ public sealed class TrayService : IDisposable
         var path = Path.Combine(AppPaths.ExeDir, "icon.ico");
         if (!File.Exists(path)) path = Path.Combine(AppContext.BaseDirectory, "icon.ico");
         if (!File.Exists(path)) return IntPtr.Zero;
-        return LoadImageW(IntPtr.Zero, path, 1 /* IMAGE_ICON */, 0, 0, 0x10 /* LR_DEFAULTSIZE */);
+        try
+        {
+            return CreateTintedIcon(path);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("tray.icon", ex);
+            return LoadImageW(IntPtr.Zero, path, 1 /* IMAGE_ICON */, 0, 0, 0x10 /* LR_DEFAULTSIZE */);
+        }
+    }
+
+    // 30% accent tint:dst = 0.7*src + 0.3*accent(#0A84FF),alpha 保留(对齐 Python 版托盘图标观感)
+    private static nint CreateTintedIcon(string path)
+    {
+        using var icon = new Icon(path, 32, 32);
+        using var src = icon.ToBitmap();
+        var a = UiColors.Accent;
+        var matrix = new ColorMatrix
+        {
+            Matrix00 = 0.7f, Matrix04 = 0.3f * a.R / 255f,
+            Matrix11 = 0.7f, Matrix14 = 0.3f * a.G / 255f,
+            Matrix22 = 0.7f, Matrix24 = 0.3f * a.B / 255f,
+            Matrix33 = 1f,
+        };
+        using var dst = new Bitmap(src.Width, src.Height, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(dst))
+        {
+            using var attr = new ImageAttributes();
+            attr.SetColorMatrix(matrix);
+            var rect = new Rectangle(0, 0, src.Width, src.Height);
+            g.DrawImage(src, rect, 0, 0, src.Width, src.Height, GraphicsUnit.Pixel, attr);
+        }
+        return dst.GetHicon();
     }
 
     private void HandleTrayClick(nint lParam)
@@ -442,6 +480,9 @@ public sealed class TrayService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern nint LoadImageW(nint hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(nint hIcon);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern nint GetModuleHandleW(string? lpModuleName);

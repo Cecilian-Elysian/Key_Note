@@ -98,7 +98,7 @@
 
 ## 已知取舍(Python → C# 迁移)
 - `window_alpha`:WinUI3 不支持整窗 alpha,改为内容区不透明度
-- 托盘图标不再做 30% 蓝色 tint 叠加(直接用 `icon.ico`)
+- 托盘图标 30% accent tint:GDI+ ColorMatrix 运行时渲染(`TrayService.CreateTintedIcon`,依赖 System.Drawing.Common),失败回退原图
 - 图表全部改为 XAML 绘制(无 matplotlib),精度与交互按 vigil-watt 规格复刻
 
 ## 惯用模式
