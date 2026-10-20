@@ -21,7 +21,8 @@ public sealed partial class SettingsPage : Page
         double Hi = 0,
         double Step = 0,
         string[]? Options = null,
-        string? ActionKey = null);
+        string? ActionKey = null,
+        bool Advanced = false);
 
     private static readonly (string Name, FieldSpec[] Fields)[] Groups =
     {
@@ -29,28 +30,28 @@ public sealed partial class SettingsPage : Page
         {
             new FieldSpec(FieldKind.Switch, "auto_start", "开机自启动", "系统登录时自动启动 KeyNote,持续后台记录按键。"),
             new FieldSpec(FieldKind.Switch, "silent_start", "静默启动", "完全静默启动,无窗口、无托盘通知(适合后台常驻)。"),
-            new FieldSpec(FieldKind.Switch, "hide_tray_icon", "隐藏托盘图标", "隐藏系统托盘图标(极致隐身),仅靠热键/重启恢复。"),
             new FieldSpec(FieldKind.Switch, "start_minimized", "启动时最小化", "开机后直接驻留托盘,不弹出主窗口。"),
             new FieldSpec(FieldKind.Switch, "close_to_tray", "关闭窗口到托盘", "点关闭按钮时最小化到托盘而不是退出程序。"),
-            new FieldSpec(FieldKind.Switch, "listener_enabled", "启动时启动监听", "启动时开启全局键盘监听,关闭后不再记录按键。"),
-            new FieldSpec(FieldKind.Switch, "mouse_listener_enabled", "记录鼠标点击", "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数。"),
-            new FieldSpec(FieldKind.Number, "idle_pause_min", "闲置自动暂停(分钟)", "无键盘/鼠标活动超过该时长后自动暂停记录,0 = 不暂停。", 0, 240, 1),
+            new FieldSpec(FieldKind.Switch, "hide_tray_icon", "隐藏托盘图标", "隐藏系统托盘图标(极致隐身),仅靠热键/重启恢复。", Advanced: true),
+            new FieldSpec(FieldKind.Switch, "listener_enabled", "启动时启动监听", "启动时开启全局键盘监听,关闭后不再记录按键。", Advanced: true),
+            new FieldSpec(FieldKind.Switch, "mouse_listener_enabled", "记录鼠标点击", "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数。", Advanced: true),
+            new FieldSpec(FieldKind.Number, "idle_pause_min", "闲置自动暂停(分钟)", "无键盘/鼠标活动超过该时长后自动暂停记录,0 = 不暂停。", 0, 240, 1, Advanced: true),
         }),
         ("界面", new[]
         {
-            new FieldSpec(FieldKind.Slider, "window_alpha", "内容透明度", "WinUI3 非打包窗口不支持整窗透明,该滑块调节内容与卡片的不透明度。", 0.6, 1.0, 0.05),
             new FieldSpec(FieldKind.Switch, "remember_window_pos", "记住窗口位置", "记住主窗口位置,下次启动恢复。"),
-            new FieldSpec(FieldKind.Number, "heatmap_days", "热力图天数", "年度热力图统计的天数范围。", 30, 730, 1),
-            new FieldSpec(FieldKind.Number, "refresh_interval_sec", "自动刷新间隔(秒)", "当前页数据的自动刷新间隔。", 2, 120, 1),
+            new FieldSpec(FieldKind.Slider, "window_alpha", "内容透明度", "WinUI3 非打包窗口不支持整窗透明,该滑块调节内容与卡片的不透明度。", 0.6, 1.0, 0.05, Advanced: true),
+            new FieldSpec(FieldKind.Number, "heatmap_days", "热力图天数", "年度热力图统计的天数范围。", 30, 730, 1, Advanced: true),
+            new FieldSpec(FieldKind.Number, "refresh_interval_sec", "自动刷新间隔(秒)", "当前页数据的自动刷新间隔。", 2, 120, 1, Advanced: true),
         }),
         ("数据", new[]
         {
-            new FieldSpec(FieldKind.Combo, "db_retention_days", "保留 raw 数据", "原始按键记录的保留时长,到期自动清理(聚合表永久保留)。",
-                Options: ["永久", "7 天", "180 天", "365 天", "730 天"]),
-            new FieldSpec(FieldKind.Path, "backup_dir", "备份目录", "备份 .db 文件的目标目录,空 = 使用数据目录下的 backups/。"),
             new FieldSpec(FieldKind.Action, "backup_now", "立即备份", "对当前数据库做一致性快照。", ActionKey: "backup"),
-            new FieldSpec(FieldKind.Action, "vacuum_now", "立即 VACUUM", "重建数据库回收空间。", ActionKey: "vacuum"),
             new FieldSpec(FieldKind.Action, "export_csv", "导出 CSV", "导出最近 30 天原始按键记录到数据目录。", ActionKey: "csv"),
+            new FieldSpec(FieldKind.Combo, "db_retention_days", "保留 raw 数据", "原始按键记录的保留时长,到期自动清理(聚合表永久保留)。",
+                Options: ["永久", "7 天", "180 天", "365 天", "730 天"], Advanced: true),
+            new FieldSpec(FieldKind.Path, "backup_dir", "备份目录", "备份 .db 文件的目标目录,空 = 使用数据目录下的 backups/。", Advanced: true),
+            new FieldSpec(FieldKind.Action, "vacuum_now", "立即 VACUUM", "重建数据库回收空间。", ActionKey: "vacuum", Advanced: true),
         }),
     };
 
@@ -58,6 +59,8 @@ public sealed partial class SettingsPage : Page
 
     private readonly Dictionary<string, object> _editors = [];
     private readonly List<FrameworkElement> _rows = [];
+    private readonly List<(StackPanel Host, TextBlock Chevron)> _advSections = [];
+    private readonly List<bool> _advOpen = [];
     private AppSettings _cfg = null!;
 
     public SettingsPage()
@@ -74,9 +77,14 @@ public sealed partial class SettingsPage : Page
         GroupsHost.Children.Clear();
         _editors.Clear();
         _rows.Clear();
+        _advSections.Clear();
+        _advOpen.Clear();
 
         foreach (var (groupName, fields) in Groups)
         {
+            var normal = fields.Where(f => !f.Advanced).ToArray();
+            var advanced = fields.Where(f => f.Advanced).ToArray();
+
             var card = new Border
             {
                 Style = (Style)Application.Current.Resources["AppCardStyle"],
@@ -114,22 +122,94 @@ public sealed partial class SettingsPage : Page
             titleRow.Children.Add(title);
             stack.Children.Add(titleRow);
 
-            for (var i = 0; i < fields.Length; i++)
+            AppendRows(stack, normal, trailingSeparator: advanced.Length > 0);
+
+            // 高级设置折叠区(默认折叠)
+            if (advanced.Length > 0)
             {
-                stack.Children.Add(BuildRow(fields[i]));
-                if (i < fields.Length - 1)
+                var advHost = new StackPanel { Visibility = Visibility.Collapsed };
+                AppendRows(advHost, advanced, trailingSeparator: false);
+
+                var chevron = new TextBlock
                 {
-                    stack.Children.Add(new Border
-                    {
-                        Height = 1,
-                        Background = new SolidColorBrush(Theme.UiColors.Divider),
-                        Margin = new Thickness(14, 0, 14, 0),
-                    });
-                }
+                    FontFamily = new FontFamily("Segoe Fluent Icons"),
+                    Text = "\uE76C", // ChevronRight
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Theme.UiColors.FgMuted),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var advTitle = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                advTitle.Children.Add(chevron);
+                advTitle.Children.Add(new TextBlock
+                {
+                    Text = "高级设置",
+                    FontSize = 13,
+                    Foreground = new SolidColorBrush(Theme.UiColors.FgSecondary),
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+                advTitle.Children.Add(new TextBlock
+                {
+                    Text = $"{advanced.Length} 项",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Theme.UiColors.FgMuted),
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+                var advHeader = new Grid
+                {
+                    Padding = new Thickness(14, 10, 14, 10),
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                };
+                advHeader.Children.Add(advTitle);
+                advHeader.PointerPressed += (_, _) =>
+                {
+                    var idx = _advSections.FindIndex(s => s.Host == advHost);
+                    _advOpen[idx] = !_advOpen[idx];
+                    ApplyAdvState(idx);
+                };
+
+                stack.Children.Add(advHeader);
+                stack.Children.Add(advHost);
+
+                var idx = _advSections.Count;
+                _advSections.Add((advHost, chevron));
+                _advOpen.Add(false);
+                ApplyAdvState(idx);
             }
 
             card.Child = stack;
             GroupsHost.Children.Add(card);
+        }
+    }
+
+    /// 高级区展开/折叠状态 → chevron 方向 + host 可见性
+    private void ApplyAdvState(int idx)
+    {
+        var (host, chevron) = _advSections[idx];
+        var open = _advOpen[idx];
+        host.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        chevron.Text = open ? "\uE70D" : "\uE76C"; // ChevronDown / ChevronRight
+    }
+
+    /// 行 + 1px 分隔符追加;trailingSeparator = 末尾补一条(衔接后续区块)
+    private void AppendRows(StackPanel host, FieldSpec[] fields, bool trailingSeparator)
+    {
+        for (var i = 0; i < fields.Length; i++)
+        {
+            host.Children.Add(BuildRow(fields[i]));
+            if (i < fields.Length - 1 || trailingSeparator)
+            {
+                host.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Theme.UiColors.Divider),
+                    Margin = new Thickness(14, 0, 14, 0),
+                });
+            }
         }
     }
 
@@ -344,6 +424,12 @@ public sealed partial class SettingsPage : Page
     private void ApplyFilter()
     {
         var q = SearchBox.Text.Trim();
+        // 搜索时强制展开所有高级区,清空后恢复折叠状态
+        for (var i = 0; i < _advSections.Count; i++)
+        {
+            _advOpen[i] = q.Length > 0;
+            ApplyAdvState(i);
+        }
         foreach (var row in _rows)
         {
             var hit = q.Length == 0 || (row.Tag as string ?? string.Empty).Contains(q, StringComparison.OrdinalIgnoreCase);
