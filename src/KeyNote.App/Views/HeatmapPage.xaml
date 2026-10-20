@@ -7,14 +7,6 @@
         <StackPanel Spacing="12">
             <controls:PageHeader x:Name="Header" Title="热力图" Subtitle="" />
 
-            <!-- 4 张 KPI 统计卡 -->
-            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
-                <controls:KpiCard x:Name="KpiToday" Grid.Column="0" Label="今日按键" Value="—" Footnote="实时统计" />
-                <controls:KpiCard x:Name="KpiAvg7" Grid.Column="1" Label="7 日均" Value="—" Footnote="近 7 天平均" />
-                <controls:KpiCard x:Name="KpiAvg30" Grid.Column="2" Label="30 日均" Value="—" Footnote="近 30 天平均" />
-                <controls:KpiCard x:Name="KpiTotal" Grid.Column="3" Label="累计按键" Value="—" Footnote="全部历史" />
-            </Grid>
-
             <!-- 年度热力图卡 -->
             <Border Style="{StaticResource AppCardStyle}">
                 <StackPanel Spacing="6">
@@ -24,7 +16,7 @@
                         <TextBlock x:Name="YearSummary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
                                    VerticalAlignment="Center" Text="" />
                     </Grid>
-                    <controls:GhHeatmapControl x:Name="Heatmap" Height="220" />
+                    <controls:GhHeatmapControl x:Name="Heatmap" Height="320" />
                 </StackPanel>
             </Border>
         </StackPanel>
