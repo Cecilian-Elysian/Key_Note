@@ -5,7 +5,7 @@
     xmlns:controls="using:KeyNote.App.Controls">
     <ScrollViewer Padding="20,16,20,16">
         <StackPanel Spacing="12">
-            <controls:PageHeader x:Name="Header" Title="常用按键" Subtitle="按键次数排行 · Top 10" />
+            <controls:PageHeader x:Name="Header" Title="常用按键" Subtitle="按使用频次排序" />
 
             <Border Style="{StaticResource AppCardStyle}">
                 <StackPanel Spacing="6">

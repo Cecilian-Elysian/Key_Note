@@ -56,7 +56,7 @@ public sealed partial class StatsPage : Page, IRefreshable
                     points = KeyNoteDb.HourlyToday()
                         .Select(r => new ChartPoint(r.Count, $"{DateTimeOffset.FromUnixTimeMilliseconds(r.HourTs).LocalDateTime:HH:mm}"))
                         .ToList();
-                    title = "今日按键趋势(逐时)";
+                    title = "按键趋势 · 逐时";
                     break;
                 case RangeIdxWeek:
                 {
@@ -64,7 +64,7 @@ public sealed partial class StatsPage : Page, IRefreshable
                     value = rows.Sum(r => r.Count);
                     points = rows.Select(r => new ChartPoint(r.Count,
                         DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
-                    title = "近 7 天按键趋势";
+                    title = "按键趋势";
                     break;
                 }
                 default:
@@ -73,7 +73,7 @@ public sealed partial class StatsPage : Page, IRefreshable
                     value = rows.Sum(r => r.Count);
                     points = rows.Select(r => new ChartPoint(r.Count,
                         DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
-                    title = "近 30 天按键趋势";
+                    title = "按键趋势";
                     break;
                 }
             }
@@ -83,12 +83,6 @@ public sealed partial class StatsPage : Page, IRefreshable
             {
                 _fp = fp;
                 MainValue.Text = value > 0 ? value.ToString("N0") : "—";
-                MainLabel.Text = _range switch
-                {
-                    RangeIdxToday => "今日按键",
-                    RangeIdxWeek => "近 7 天按键",
-                    _ => "近 30 天按键",
-                };
                 TrendTitle.Text = title;
                 TrendChart.SetData(points);
                 UpdateMainFooter();

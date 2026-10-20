@@ -15,6 +15,30 @@
                 <SelectorBarItem x:Name="RangeMonth" Text="近 30 天" IsSelected="True" />
             </SelectorBar>
 
+            <!-- 年度热力图卡 -->
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock x:Name="YearTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
+                                   Text="过去 365 天 · 每日贡献" />
+                        <TextBlock x:Name="YearSummary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </Grid>
+                    <controls:GhHeatmapControl x:Name="Heatmap" Height="200" />
+                </StackPanel>
+            </Border>
+
+            <!-- 趋势图卡 -->
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
+                                   Text="按键趋势" />
+                    </Grid>
+                    <controls:TrendChartControl x:Name="TrendChart" Height="220" />
+                </StackPanel>
+            </Border>
+
             <!-- 设备行式主卡 -->
             <Border Style="{StaticResource AppCardStyle}" Padding="14,12,14,12">
                 <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto">
@@ -22,7 +46,7 @@
                               FontSize="20" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                               VerticalAlignment="Center" Margin="0,0,10,0" />
                     <TextBlock x:Name="MainLabel" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
-                               Style="{StaticResource CardTitleStyle}" Text="近 30 天按键" />
+                               Style="{StaticResource CardTitleStyle}" Text="按键总量" />
                     <TextBlock x:Name="MainValue" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
                                Style="{StaticResource CardHeroValueStyle}" Text="—" />
 
@@ -36,30 +60,6 @@
                                    VerticalAlignment="Center" Text="" />
                     </StackPanel>
                 </Grid>
-            </Border>
-
-            <!-- 趋势图卡 -->
-            <Border Style="{StaticResource AppCardStyle}">
-                <StackPanel Spacing="4">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                        <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
-                                   Text="近 30 天按键趋势" />
-                    </Grid>
-                    <controls:TrendChartControl x:Name="TrendChart" Height="220" />
-                </StackPanel>
-            </Border>
-
-            <!-- 年度热力图卡 -->
-            <Border Style="{StaticResource AppCardStyle}">
-                <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                        <TextBlock x:Name="YearTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
-                                   Text="过去 365 天 · 每日贡献" />
-                        <TextBlock x:Name="YearSummary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
-                                   VerticalAlignment="Center" Text="" />
-                    </Grid>
-                    <controls:GhHeatmapControl x:Name="Heatmap" Height="200" />
-                </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>
