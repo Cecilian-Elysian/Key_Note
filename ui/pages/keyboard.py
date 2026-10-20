@@ -1,4 +1,4 @@
-"""后台页(Page 2):3 张紧凑副卡 + 7×24 小时活跃度热力图 + QWERTY 键盘热力图"""
+"""后台页(Page 2):3 张 KPI 副卡 + 7×24 小时活跃度热力图 + QWERTY 键盘热力图"""
 from __future__ import annotations
 
 import math
@@ -12,28 +12,6 @@ from ui.pages.base import BasePage
 from ui.widgets.chart_utils import CanvasTip
 
 
-# ──── 页面专属调色板(与 dashboard.py 解耦) ────
-_PALETTE: dict[str, str] = {
-    "bg":          "#0B1120",
-    "card_bg":     "#1A1F2C",
-    "accent":      "#FF5722",
-    "fg_primary":  "#E2E8F0",
-    "fg_muted":    "#64748B",
-    "key_border":  "#2D3748",
-    "key_empty":   "#1E293B",
-    "grid_line":   "#2D3748",
-    "h_empty":     "#2b2b2b",
-    "h_l1":        "#0e4429",
-    "h_l2":        "#006d32",
-    "h_l3":        "#26a641",
-    "h_l4":        "#39d353",
-}
-
-
-def _palette() -> dict[str, str]:
-    return _PALETTE
-
-
 # ──── QWERTY 键盘布局 ────
 _KEY_ROWS = [
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-"],
@@ -44,6 +22,13 @@ _KEY_ROWS = [
 _ROW_OFFSETS = [0.0, 0.5, 0.75, 1.25]
 _KEY_SPACER_W = 5
 _CN_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
+_MOUSE_BTN_CN = {
+    "left": "左键",
+    "right": "右键",
+    "middle": "中键",
+    "x1": "侧键 1",
+    "x2": "侧键 2",
+}
 
 
 # ──── 颜色工具 ────
@@ -55,13 +40,40 @@ def _lerp_color(c0: tuple, c1: tuple, t: float) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
+def _draw_scale_legend(
+    cv: tk.Canvas, right_x: float, y: float, colors: list[str], s: float
+) -> None:
+    """色阶图例:少 → 多,靠右对齐。"""
+    c = theme.current().colors
+    box = max(6, min(10, round(9 * s)))
+    gap = max(2, round(3 * s))
+    text_w = round(11 * s)
+    total = text_w + round(8 * s) + len(colors) * box + (len(colors) - 1) * gap + \
+        round(8 * s) + text_w
+    x = right_x - total
+    cv.create_text(
+        x, y + box / 2, text="少", anchor="w",
+        fill=c.fg_muted, font=("", 9),
+    )
+    x += text_w + round(8 * s)
+    for col in colors:
+        cv.create_rectangle(x, y, x + box, y + box, fill=col, outline="")
+        x += box + gap
+    x += round(8 * s) - gap
+    cv.create_text(
+        x, y + box / 2, text="多", anchor="w",
+        fill=c.fg_muted, font=("", 9),
+    )
+
+
 class KeyboardPage(BasePage):
     name = "keyboard"
 
+    # ──── 构建 ────
     def _build(self) -> None:
-        p = _palette()
+        c = theme.current().colors
         s = getattr(self.app, "ui_scale", 1.0)
-        self.configure(fg_color=p["bg"])
+        self.configure(fg_color=c.bg_primary)
         self._tip = None
         self._h_layout = None
         self._h_grid = None
@@ -72,69 +84,139 @@ class KeyboardPage(BasePage):
         self._sub_fp: tuple | None = None
         self._sub_last: tuple = (0, 0, 0)
 
-        # ──── 顶紧凑副卡(3 张) ────
+        # ──── 页头(固定):标题 + 副标题 / 刷新按钮 ────
+        head = ctk.CTkFrame(self, fg_color="transparent")
+        head.pack(fill="x", padx=16, pady=(12, 10))
+        titles = ctk.CTkFrame(head, fg_color="transparent")
+        titles.pack(side="left", fill="x", expand=True)
+        self._page_title = ctk.CTkLabel(
+            titles, text="后台", font=theme.FONTS["page_title"], text_color=c.fg_primary
+        )
+        self._page_title.pack(anchor="w")
+        self._page_sub = ctk.CTkLabel(
+            titles, text="键盘与鼠标活动分布", font=theme.FONTS["label"],
+            text_color=c.fg_secondary, anchor="w",
+        )
+        self._page_sub.pack(anchor="w", pady=(2, 0))
+        self._refresh_btn = ctk.CTkButton(
+            head, text="", image=self.app.refresh_icon(),
+            width=28, height=28, corner_radius=theme.RADIUS["md"],
+            fg_color="transparent", border_width=0,
+            hover_color=c.bg_tertiary, command=self._on_refresh_click,
+        )
+        self._refresh_btn.pack(side="right", pady=(2, 0))
+
+        # ──── 滚动内容 ────
+        scroll = ctk.CTkScrollableFrame(self, fg_color=c.bg_primary)
+        scroll.pack(fill="both", expand=True)
+        self._scroll = scroll
+        self._scroll._parent_canvas.bind(
+            "<MouseWheel>", self._on_mousewheel, add="+"
+        )
+
+        # ──── 3 张 KPI 副卡 ────
+        kpi_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        kpi_row.pack(fill="x", padx=12, pady=(0, 10))
+        kpi_row.columnconfigure((0, 1, 2), weight=1, uniform="kpi")
         self._sub: dict[str, ctk.CTkLabel] = {}
-        sub_frame = ctk.CTkFrame(self, fg_color="transparent")
-        sub_frame.pack(fill="x", padx=6, pady=(4, 2))
-        sub_frame.columnconfigure((0, 1, 2), weight=1, uniform="sub")
+        self._sub_foot: dict[str, ctk.CTkLabel] = {}
         for idx, (key, title) in enumerate([
             ("total", "累计按键"),
             ("mouse", "鼠标点击"),
             ("active", "活跃天数"),
         ]):
-            card = ctk.CTkFrame(sub_frame, fg_color=p["card_bg"], corner_radius=8)
-            card.grid(row=0, column=idx, padx=3, pady=1, sticky="nsew")
-            ctk.CTkLabel(card, text=title, font=("", 9), text_color=p["fg_muted"]
-                         ).pack(anchor="w", padx=8, pady=(3, 0))
-            val = ctk.CTkLabel(card, text="—", font=("", 13, "bold"), text_color=p["fg_primary"])
-            val.pack(anchor="w", padx=8, pady=(0, 3))
+            card = ctk.CTkFrame(
+                kpi_row, fg_color=c.bg_secondary,
+                corner_radius=theme.RADIUS["md"],
+                border_width=1, border_color=c.border,
+            )
+            card.grid(row=0, column=idx, padx=4, sticky="nsew")
+            ctk.CTkLabel(
+                card, text=title, font=theme.FONTS["label"],
+                text_color=c.fg_secondary, anchor="w",
+            ).pack(anchor="w", padx=10, pady=(8, 0))
+            val = ctk.CTkLabel(
+                card, text="—", font=theme.FONTS["kpi_value"],
+                text_color=c.fg_primary, anchor="w",
+            )
+            val.pack(anchor="w", padx=10, pady=(1, 0))
+            foot = ctk.CTkLabel(
+                card, text="", font=theme.FONTS["caption"],
+                text_color=c.fg_muted, anchor="w",
+            )
+            foot.pack(anchor="w", padx=10, pady=(1, 8))
             self._sub[key] = val
+            self._sub_foot[key] = foot
 
-        # ──── 7×24 小时热力图 ────
-        h_card = ctk.CTkFrame(self, fg_color=p["card_bg"], corner_radius=10)
-        h_card.pack(fill="x", padx=6, pady=(2, 2))
+        # ──── 7×24 小时热力图卡 ────
+        h_card = ctk.CTkFrame(
+            scroll, fg_color=c.bg_secondary,
+            corner_radius=theme.RADIUS["md"],
+            border_width=1, border_color=c.border,
+        )
+        h_card.pack(fill="x", padx=16, pady=(0, 10))
         h_head = ctk.CTkFrame(h_card, fg_color="transparent")
-        h_head.pack(fill="x", padx=10, pady=(4, 0))
+        h_head.pack(fill="x", padx=14, pady=(10, 0))
         self._h_title_lbl = ctk.CTkLabel(
-            h_head, text="7×24 小时活跃度", font=("", 11), text_color=p["fg_primary"]
+            h_head, text="7×24 小时活跃度", font=theme.FONTS["card_title"],
+            text_color=c.fg_primary,
         )
         self._h_title_lbl.pack(side="left")
         self._h_summary_lbl = ctk.CTkLabel(
-            h_head, text="", font=("", 9), text_color=p["fg_muted"]
+            h_head, text="", font=theme.FONTS["caption"], text_color=c.fg_muted
         )
         self._h_summary_lbl.pack(side="right")
         self._h_canvas = tk.Canvas(
-            h_card, bg=p["card_bg"], highlightthickness=0, height=round(127 * s)
+            h_card, bg=c.bg_secondary, highlightthickness=0, height=round(140 * s)
         )
-        self._h_canvas.pack(fill="x", padx=10, pady=(2, 6))
+        self._h_canvas.pack(fill="x", padx=14, pady=(4, 12))
         self._h_canvas.bind("<Configure>", lambda _e: self._draw_hourly())
         self._h_canvas.bind("<Motion>", self._on_h_motion)
         self._h_canvas.bind("<Leave>", lambda _e: self._hide_tip())
 
-        # ──── 键盘热力图 ────
-        kb_card = ctk.CTkFrame(self, fg_color=p["card_bg"], corner_radius=10)
-        kb_card.pack(fill="x", padx=6, pady=(2, 6))
+        # ──── 键盘热力图卡 ────
+        kb_card = ctk.CTkFrame(
+            scroll, fg_color=c.bg_secondary,
+            corner_radius=theme.RADIUS["md"],
+            border_width=1, border_color=c.border,
+        )
+        kb_card.pack(fill="x", padx=16, pady=(0, 16))
         self._kb_card = kb_card
         kb_head = ctk.CTkFrame(kb_card, fg_color="transparent")
-        kb_head.pack(fill="x", padx=10, pady=(4, 2))
+        kb_head.pack(fill="x", padx=14, pady=(10, 2))
         self._kb_title_lbl = ctk.CTkLabel(
-            kb_head, text="按键分布热力图", font=("", 11), text_color=p["fg_primary"]
+            kb_head, text="按键分布热力图", font=theme.FONTS["card_title"],
+            text_color=c.fg_primary,
         )
         self._kb_title_lbl.pack(side="left")
         self._kb_legend = ctk.CTkLabel(
-            kb_head, text="", font=("", 9), text_color=p["fg_muted"]
+            kb_head, text="", font=theme.FONTS["caption"], text_color=c.fg_muted
         )
         self._kb_legend.pack(side="right")
-
         self._kb_canvas = tk.Canvas(
-            kb_card, bg=p["card_bg"], highlightthickness=0, height=round(184 * s)
+            kb_card, bg=c.bg_secondary, highlightthickness=0, height=round(200 * s)
         )
-        self._kb_canvas.pack(fill="x", padx=10, pady=(0, 8))
+        self._kb_canvas.pack(fill="x", padx=14, pady=(0, 12))
         self._kb_canvas.bind("<Configure>", lambda _e: self._draw_keyboard())
         self._kb_canvas.bind("<Motion>", self._on_kb_motion)
         self._kb_canvas.bind("<Leave>", lambda _e: self._hide_tip())
         self._kb_counts: dict[str, int] = {}
         self._kb_max = 0
+
+    # ──── 交互 ────
+    def _on_refresh_click(self) -> None:
+        try:
+            self.app.refresh()
+        except Exception:
+            pass
+
+    def _on_mousewheel(self, event) -> str:
+        delta = int(-1 * (event.delta / 120) * 3)
+        try:
+            self._scroll._parent_canvas.yview_scroll(delta, "units")
+        except Exception:
+            pass
+        return "break"
 
     # ──── 刷新(带数据指纹,无变化跳过重绘) ────
     def _do_refresh(self) -> None:
@@ -146,7 +228,10 @@ class KeyboardPage(BasePage):
                 self._sub_last = sub
                 self.animate_number(self._sub["total"], prev[0], sub[0])
                 self.animate_number(self._sub["mouse"], prev[1], sub[1])
-                self.animate_number(self._sub["active"], prev[2], sub[2], suffix=" 天")
+                self.animate_number(
+                    self._sub["active"], prev[2], sub[2], suffix=" 天"
+                )
+                self._update_sub_foots()
         except Exception:
             pass
 
@@ -170,7 +255,7 @@ class KeyboardPage(BasePage):
                 if self._kb_max > 0:
                     top_key = max(self._kb_counts.items(), key=lambda kv: kv[1])
                     self._kb_legend.configure(
-                        text=f"最高: {top_key[0].upper()} × {top_key[1]:,}"
+                        text=f"最高 {top_key[0].upper()} × {top_key[1]:,}"
                     )
                 else:
                     self._kb_legend.configure(text="")
@@ -178,18 +263,42 @@ class KeyboardPage(BasePage):
         except Exception:
             pass
 
+    def _update_sub_foots(self) -> None:
+        """副卡脚注:今日新增 / 鼠标主键占比 / 统计窗口。"""
+        try:
+            today = db.count_today()
+            self._sub_foot["total"].configure(text=f"今日 +{today:,}")
+        except Exception:
+            pass
+        try:
+            rows = db.mouse_by_button()
+            total = db.mouse_total()
+            if rows and total > 0:
+                button, cnt = rows[0]
+                name = _MOUSE_BTN_CN.get(str(button).lower(), str(button))
+                pct = round(int(cnt) / total * 100)
+                self._sub_foot["mouse"].configure(text=f"{name} {pct}%")
+            else:
+                self._sub_foot["mouse"].configure(text="暂无数据")
+        except Exception:
+            pass
+        try:
+            self._sub_foot["active"].configure(text="近 30 天")
+        except Exception:
+            pass
+
     # ──── 7×24 渲染 ────
     def _draw_hourly(self, grid=None) -> None:
-        p = _palette()
+        c = theme.current().colors
         s = getattr(self.app, "ui_scale", 1.0)
-        c = self._h_canvas
+        cv = self._h_canvas
         self._h_layout = None
         self._h_grid = None
-        w = c.winfo_width()
-        h = c.winfo_height()
+        w = cv.winfo_width()
+        h = cv.winfo_height()
         if w < 60 or h < 40:
             return
-        c.delete("all")
+        cv.delete("all")
 
         if grid is None:
             grid = self._h_grid_data
@@ -203,6 +312,7 @@ class KeyboardPage(BasePage):
             return
 
         peak = int(grid.max()) if grid.size else 0
+        total = int(grid.sum())
 
         margin_x = round(24 * s)
         cols = 24
@@ -210,14 +320,15 @@ class KeyboardPage(BasePage):
         gap = 1
         pad_y = round(8 * s)
         label_h = round(12 * s)
+        legend_h = round(16 * s)
         usable_w = max(round(40 * s), w - margin_x - 4)
         cell = max(round(10 * s), min(round(22 * s), (usable_w - (cols - 1) * gap) / cols))
         grid_w = cols * cell + (cols - 1) * gap
         grid_h = rows * cell + (rows - 1) * gap
-        content_h = grid_h + 2 + label_h
+        content_h = grid_h + 2 + label_h + legend_h
         needed = int(content_h + pad_y * 2)
         if abs(h - needed) > 2:
-            c.configure(height=needed)
+            cv.configure(height=needed)
         ox = margin_x + max(0, (usable_w - grid_w) / 2)
         oy = max(pad_y, (h - content_h) / 2)
         self._h_layout = (ox, oy, cell, cell, gap)
@@ -225,50 +336,65 @@ class KeyboardPage(BasePage):
 
         def _bucket(val: int) -> str:
             if val <= 0 or peak <= 0:
-                return p["h_empty"]
+                return c.heatmap_empty
             r = val / peak
-            if r <= 0.25: return p["h_l1"]
-            if r <= 0.50: return p["h_l2"]
-            if r <= 0.75: return p["h_l3"]
-            return p["h_l4"]
+            if r <= 0.25:
+                return c.heatmap_l1
+            if r <= 0.50:
+                return c.heatmap_l2
+            if r <= 0.75:
+                return c.heatmap_l3
+            return c.heatmap_l4
 
         for dow in range(rows):
             ty = oy + dow * (cell + gap) + cell / 2
-            c.create_text(6, ty, text=_CN_WEEKDAYS[dow], anchor="w",
-                          fill=p["fg_muted"], font=("", 9))
+            cv.create_text(6, ty, text=_CN_WEEKDAYS[dow], anchor="w",
+                           fill=c.fg_muted, font=("", 9))
             for hour in range(cols):
                 x1 = ox + hour * (cell + gap)
                 y1 = oy + dow * (cell + gap)
                 val = int(grid[dow, hour])
-                c.create_rectangle(
+                cv.create_rectangle(
                     x1, y1, x1 + cell, y1 + cell,
                     fill=_bucket(val), outline="", width=0,
                 )
 
         for hr in (0, 6, 12, 18, 23):
             tx = ox + hr * (cell + gap) + cell / 2
-            c.create_text(tx, oy + grid_h + 2, text=str(hr), anchor="n",
-                          fill=p["fg_muted"], font=("", 8))
+            cv.create_text(tx, oy + grid_h + 2, text=str(hr), anchor="n",
+                           fill=c.fg_muted, font=("", 8))
+
+        legend_y = oy + grid_h + 2 + label_h
+        _draw_scale_legend(
+            cv, ox + grid_w, legend_y,
+            [c.heatmap_empty, c.heatmap_l1, c.heatmap_l2, c.heatmap_l3, c.heatmap_l4],
+            s,
+        )
+
+        if total <= 0:
+            cv.create_text(
+                ox + grid_w / 2, oy + grid_h / 2, text="近 7 天还没有记录",
+                fill=c.fg_muted, font=("", 10),
+            )
 
         try:
-            total = int(grid.sum())
             active = int((grid > 0).sum())
             self._h_summary_lbl.configure(
-                text=f"近 7 天 · 合计 {total:,} · 活跃 {active}/168 桶 · 峰值 {peak:,}"
+                text=f"活跃 {active}/168 桶 · 峰值 {peak:,}"
             )
         except Exception:
             pass
 
     # ──── QWERTY 渲染 ────
     def _draw_keyboard(self) -> None:
-        p = _palette()
+        c = theme.current().colors
         s = getattr(self.app, "ui_scale", 1.0)
-        c = self._kb_canvas
-        c.delete("all")
-        c.configure(bg=p["card_bg"])
+        cv = self._kb_canvas
+        cv.delete("all")
+        cv.configure(bg=c.bg_secondary)
         self._kb_rects = []
-        w = c.winfo_width()
-        if w < 50 or c.winfo_height() < 100:
+        w = cv.winfo_width()
+        if w < 50 or cv.winfo_height() < 100:
             return
 
         gap = round(5 * s)
@@ -281,13 +407,13 @@ class KeyboardPage(BasePage):
         grid_w = max_cols * cell_w + (max_cols - 1) * gap
         start_x = (w - grid_w) // 2
 
-        base_rgb = theme.hex_to_rgb(p["key_empty"])
-        peak_rgb = theme.hex_to_rgb(p["accent"])
+        base_rgb = theme.hex_to_rgb(c.bg_tertiary)
+        peak_rgb = theme.hex_to_rgb(c.accent)
 
         def color_for(key: str) -> str:
             count = self._kb_counts.get(key, 0)
             if self._kb_max <= 0 or count == 0:
-                return p["key_empty"]
+                return c.bg_tertiary
             t = math.pow(count / self._kb_max, 0.5)
             return _lerp_color(base_rgb, peak_rgb, t)
 
@@ -300,13 +426,13 @@ class KeyboardPage(BasePage):
                 x1 = x0 + cell_w
                 y1 = y0 + cell_h
                 fill = color_for(key)
-                c.create_rectangle(
+                cv.create_rectangle(
                     x0, y0, x1, y1,
-                    fill=fill, outline=p["key_border"], width=1,
+                    fill=fill, outline=c.border, width=1,
                 )
-                c.create_text(
+                cv.create_text(
                     (x0 + x1) // 2, (y0 + y1) // 2,
-                    text=key.upper(), fill=p["fg_primary"], font=("", 10, "bold"),
+                    text=key.upper(), fill=c.fg_primary, font=("", 10, "bold"),
                 )
                 self._kb_rects.append((key, int(x0), int(y0), int(x1), int(y1)))
             y += cell_h + gap
@@ -321,24 +447,37 @@ class KeyboardPage(BasePage):
             t = math.pow(space_count / self._kb_max, 0.5)
             spc_fill = _lerp_color(base_rgb, peak_rgb, t)
         else:
-            spc_fill = p["key_empty"]
-        c.create_rectangle(
+            spc_fill = c.bg_tertiary
+        cv.create_rectangle(
             sx0, sy0, sx1, sy1,
-            fill=spc_fill, outline=p["key_border"], width=1,
+            fill=spc_fill, outline=c.border, width=1,
         )
-        c.create_text(
+        cv.create_text(
             (sx0 + sx1) // 2, (sy0 + sy1) // 2,
-            text="SPACE", fill=p["fg_primary"], font=("", 9, "bold"),
+            text="SPACE", fill=c.fg_primary, font=("", 9, "bold"),
         )
         self._kb_rects.append(("space", int(sx0), int(sy0), int(sx1), int(sy1)))
+
+        legend_y = sy1 + round(4 * s)
+        legend_colors = [
+            _lerp_color(base_rgb, peak_rgb, t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)
+        ]
+        _draw_scale_legend(cv, sx1, legend_y, legend_colors, s)
+        cv.configure(height=int(legend_y + round(14 * s)))
+
+        if self._kb_max <= 0:
+            cv.create_text(
+                w / 2, (sy0 - round(8 * s)) / 2, text="还没有按键记录",
+                fill=c.fg_muted, font=("", 10),
+            )
 
     # ──── canvas 悬停提示 ────
     def _show_tip(self, text: str, x: int, y: int) -> None:
         if self._tip is None:
-            p = _palette()
+            c = theme.current().colors
             self._tip = CanvasTip(
-                self, bg=p["card_bg"], fg=p["fg_primary"],
-                border=p["key_border"], bold=False,
+                self, bg=c.bg_tertiary, fg=c.fg_primary,
+                border=c.border, bold=False,
             )
         self._tip.show(text, x, y)
 
@@ -386,19 +525,23 @@ class KeyboardPage(BasePage):
         self._hide_tip()
 
     def _do_apply_theme(self) -> None:
-        p = _palette()
+        c = theme.current().colors
         try:
-            self.configure(fg_color=p["bg"])
+            self.configure(fg_color=c.bg_primary)
+            if hasattr(self, "_scroll"):
+                self._scroll.configure(fg_color=c.bg_primary)
             if hasattr(self, "_h_canvas"):
-                self._h_canvas.configure(bg=p["card_bg"])
+                self._h_canvas.configure(bg=c.bg_secondary)
             if hasattr(self, "_kb_canvas"):
-                self._kb_canvas.configure(bg=p["card_bg"])
+                self._kb_canvas.configure(bg=c.bg_secondary)
             if hasattr(self, "_kb_card"):
-                self._kb_card.configure(fg_color=p["card_bg"])
-            self._kb_title_lbl.configure(text_color=p["fg_primary"])
-            self._kb_legend.configure(text_color=p["fg_muted"])
-            self._h_title_lbl.configure(text_color=p["fg_primary"])
-            self._h_summary_lbl.configure(text_color=p["fg_muted"])
+                self._kb_card.configure(
+                    fg_color=c.bg_secondary, border_color=c.border
+                )
+            self._kb_title_lbl.configure(text_color=c.fg_primary)
+            self._kb_legend.configure(text_color=c.fg_muted)
+            self._h_title_lbl.configure(text_color=c.fg_primary)
+            self._h_summary_lbl.configure(text_color=c.fg_muted)
         except Exception:
             pass
         self._draw_hourly()
