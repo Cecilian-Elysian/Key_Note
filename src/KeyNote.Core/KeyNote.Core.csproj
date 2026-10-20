@@ -7,6 +7,8 @@
     <RootNamespace>KeyNote.Core</RootNamespace>
     <Platforms>x64</Platforms>
     <Nullable>enable</Nullable>
+    <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)'=='Release'">false</DebugSymbols>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
