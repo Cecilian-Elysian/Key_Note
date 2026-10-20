@@ -1,4 +1,4 @@
-"""主窗口模块,400×550 固定尺寸 2 页布局(统计 / 后台)+ 底部 tab bar 切换 + 顶部状态栏 + 自动刷新 + 闲置检测 + 设置回调"""
+"""主窗口模块,460×620 固定尺寸 2 页布局(统计 / 后台)+ 底部 tab bar 切换 + Fluent 标题栏 + 自动刷新 + 闲置检测 + 设置回调"""
 from __future__ import annotations
 
 # ──── 字体适配 ────
@@ -33,6 +33,10 @@ CTK_FONT_CANDIDATES = (
     "Arial",
 )
 
+# ──── 窗口尺寸(逻辑 px,DPI 缩放后为物理像素) ────
+WIN_W = 460
+WIN_H = 620
+
 
 def _pick_font() -> Optional[str]:
     try:
@@ -64,6 +68,15 @@ def _draw_gear_icon(colors) -> Image.Image:
     for x, y in [(16, 5), (16, 27), (5, 16), (27, 16)]:
         d.rectangle([(x-2, y-2), (x+2, y+2)], fill=fg)
     d.ellipse([(14, 14), (18, 18)], fill=fg)
+    return img
+
+
+def _draw_refresh_icon(colors) -> Image.Image:
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    fg = theme.hex_to_rgb(colors.fg_muted)
+    d.arc([(9, 9), (23, 23)], start=35, end=300, fill=fg, width=2)
+    d.polygon([(22, 5), (25, 13), (16, 12)], fill=fg)
     return img
 
 
@@ -225,8 +238,8 @@ class App(ctk.CTk):
         return _pick_font()
 
     def _apply_geometry(self, cfg: dict) -> None:
-        w = round(400 * self._ui_scale)
-        h = round(550 * self._ui_scale)
+        w = round(WIN_W * self._ui_scale)
+        h = round(WIN_H * self._ui_scale)
         if cfg.get("remember_window_pos", True):
             geo = str(cfg.get("_window_geometry", "") or "")
             if geo:
@@ -241,9 +254,9 @@ class App(ctk.CTk):
         self.maxsize(w, h)
 
     def _clamp_window_size(self) -> None:
-        """将窗口尺寸锁定到逻辑 400×550(按 DPI 换算物理像素),保留原位置。"""
-        w = round(400 * self._ui_scale)
-        h = round(550 * self._ui_scale)
+        """将窗口尺寸锁定到逻辑 460×620(按 DPI 换算物理像素),保留原位置。"""
+        w = round(WIN_W * self._ui_scale)
+        h = round(WIN_H * self._ui_scale)
         try:
             self.maxsize(w, h)
             self.minsize(w, h)
@@ -316,34 +329,41 @@ class App(ctk.CTk):
         self.bind("<Alt-comma>", lambda _e: self._open_settings())
         self.bind("<Alt-Key-p>", lambda _e: self._toggle_topmost())
 
-    # ──── UI 构建(grid 三段) ────
+    # ──── UI 构建(grid 四段:标题栏 / 内容 / 分隔线 / tab bar) ────
     def _build_ui(self) -> None:
         c = theme.current().colors
         s = self._ui_scale
         self.configure(fg_color=c.bg_primary)
 
-        self.grid_rowconfigure(0, minsize=round(28 * s))
+        self.grid_rowconfigure(0, minsize=round(40 * s))
         self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, minsize=round(46 * s))
+        self.grid_rowconfigure(2, minsize=1)
+        self.grid_rowconfigure(3, minsize=round(44 * s))
         self.grid_columnconfigure(0, weight=1)
 
-        # row 0: 顶栏
-        top = ctk.CTkFrame(self, height=round(28 * s), fg_color=c.bg_secondary)
+        # row 0: 标题栏(Fluent 风格:标题 + 状态胶囊 / 右侧图标按钮)
+        top = ctk.CTkFrame(self, height=round(40 * s), fg_color=c.bg_primary)
         self._top = top
         top.grid(row=0, column=0, sticky="ew")
         top.pack_propagate(False)
 
+        ctk.CTkFrame(top, height=1, fg_color=c.divider).pack(side="bottom", fill="x")
+
+        ctk.CTkLabel(
+            top, text="KeyNote", text_color=c.fg_primary, font=("", 13, "bold")
+        ).pack(side="left", padx=(14, 10), pady=6)
+
+        self._status_pill = ctk.CTkFrame(
+            top, fg_color=c.bg_tertiary, corner_radius=theme.RADIUS["md"]
+        )
+        self._status_pill.pack(side="left", pady=6)
         self.status_lbl = ctk.CTkLabel(
-            top, text="●记录中", text_color=c.success, font=("", 11, "bold")
+            self._status_pill, text="● 记录中", text_color=c.success, font=("", 11)
         )
-        self.status_lbl.pack(side="left", padx=8)
-        self.today_lbl = ctk.CTkLabel(
-            top, text="今日: 0", text_color=c.fg_primary, font=("", 10)
-        )
-        self.today_lbl.pack(side="left", padx=6)
+        self.status_lbl.pack(padx=8, pady=2)
 
         right = ctk.CTkFrame(top, fg_color="transparent")
-        right.pack(side="right", padx=4)
+        right.pack(side="right", padx=8, pady=6)
 
         self._pin_icon_normal = ctk.CTkImage(
             light_image=_draw_pin_icon(c, active=False),
@@ -363,19 +383,24 @@ class App(ctk.CTk):
 
         self._settings_btn = ctk.CTkButton(
             right, text="", image=self._gear_icon,
-            width=26, height=22, corner_radius=6,
-            fg_color="transparent", border_width=1, border_color=c.border,
+            width=28, height=26, corner_radius=theme.RADIUS["sm"],
+            fg_color="transparent", border_width=0,
             hover_color=c.bg_tertiary, command=self._open_settings,
         )
-        self._settings_btn.pack(side="right", padx=(0, 4))
+        self._settings_btn.pack(side="right", padx=(0, 2))
 
         self._pin_btn = ctk.CTkButton(
             right, text="", image=self._pin_icon_normal,
-            width=26, height=22, corner_radius=6,
-            fg_color="transparent", border_width=1, border_color=c.border,
+            width=28, height=26, corner_radius=theme.RADIUS["sm"],
+            fg_color="transparent", border_width=0,
             hover_color=c.bg_tertiary, command=self._toggle_topmost,
         )
-        self._pin_btn.pack(side="right", padx=(0, 4))
+        self._pin_btn.pack(side="right", padx=(0, 2))
+
+        self.today_lbl = ctk.CTkLabel(
+            right, text="今日 0", text_color=c.fg_secondary, font=("", 11)
+        )
+        self.today_lbl.pack(side="right", padx=(0, 10))
 
         self._update_pin_btn()
 
@@ -400,10 +425,16 @@ class App(ctk.CTk):
         self._pages[self.PAGE_OVERVIEW] = OverviewPage(self._body, self)
         self._pages[self.PAGE_KEYBOARD] = KeyboardPage(self._body, self)
 
-        # row 2: nav bar
-        nav = ctk.CTkFrame(self, height=round(46 * s), fg_color=c.bg_secondary)
+        # row 2: 标题栏与 tab bar 之间的分隔线
+        ctk.CTkFrame(self, height=1, fg_color=c.divider).grid(
+            row=2, column=0, sticky="ew"
+        )
+
+        # row 3: nav bar
+        nav = ctk.CTkFrame(self, height=round(44 * s), fg_color=c.bg_primary)
         self._nav = nav
-        nav.grid(row=2, column=0, sticky="ew")
+        nav.grid(row=3, column=0, sticky="ew")
+        nav.grid_rowconfigure(0, minsize=round(44 * s))
         nav.grid_columnconfigure((0, 1), weight=1, uniform="nav")
 
         tabs = [(self.PAGE_OVERVIEW, "统计"), (self.PAGE_KEYBOARD, "后台")]
@@ -414,19 +445,32 @@ class App(ctk.CTk):
                 text_color=c.fg_muted,
                 hover_color=c.bg_tertiary,
                 font=("", 12, "bold"),
-                corner_radius=0,
+                corner_radius=theme.RADIUS["md"],
                 border_width=0,
-                border_color=c.border,
                 command=lambda n=name: self._switch_page(n),
             )
-            btn.grid(row=0, column=col, padx=0, pady=0, sticky="nsew")
+            btn.grid(row=0, column=col, padx=12, pady=6, sticky="nsew")
             self._nav_buttons[name] = btn
 
-        # 激活 tab 顶边滑动指示条
+        # 激活 tab 底边滑动指示条
         self._nav_indicator = ctk.CTkFrame(
-            nav, height=3, width=56, corner_radius=2, fg_color=c.accent
+            nav, height=3, width=48, corner_radius=2, fg_color=c.accent
         )
         nav.bind("<Configure>", lambda _e: self._move_indicator(animate=False))
+
+    # ──── 页头刷新按钮图标(供各页面复用) ────
+    def refresh_icon(self) -> ctk.CTkImage:
+        """返回刷新图标(缓存),页面标题栏的刷新按钮直接引用。"""
+        img = getattr(self, "_refresh_icon_img", None)
+        if img is None:
+            c = theme.current().colors
+            img = ctk.CTkImage(
+                light_image=_draw_refresh_icon(c),
+                dark_image=_draw_refresh_icon(c),
+                size=(14, 14),
+            )
+            self._refresh_icon_img = img
+        return img
 
     # ──── 页面切换 ────
     def _switch_page(self, name: str) -> None:
@@ -455,7 +499,10 @@ class App(ctk.CTk):
         for n, btn in self._nav_buttons.items():
             is_active = (n == name)
             try:
-                btn.configure(text_color=(c.accent if is_active else c.fg_muted))
+                btn.configure(
+                    text_color=(c.accent if is_active else c.fg_muted),
+                    fg_color=(c.bg_tertiary if is_active else "transparent"),
+                )
             except Exception:
                 pass
         self._move_indicator(animate=True)
@@ -483,10 +530,17 @@ class App(ctk.CTk):
                     50, lambda: self._move_indicator(animate=False)
                 )
             return
-        target_x = btn.winfo_x() + max(0, (bw - ind.winfo_width()) // 2)
+        ind_w = max(24, bw - 24)
+        try:
+            ind.configure(width=ind_w)
+        except Exception:
+            pass
+        target_x = btn.winfo_x() + max(0, (bw - ind_w) // 2)
+        nav_h = self._nav.winfo_height()
+        target_y = max(0, nav_h - 3)
 
         def _place(x: int) -> None:
-            ind.place(in_=self._nav, x=x, y=0)
+            ind.place(in_=self._nav, x=x, y=target_y)
             ind.lift()
             self._ind_placed = True
 
@@ -525,7 +579,9 @@ class App(ctk.CTk):
             self.status_lbl.configure(text="⏸ 已暂停", text_color=c.warning)
         else:
             self.status_lbl.configure(text="● 记录中", text_color=c.success)
-        self.today_lbl.configure(text=f"今日: {db.count_today():,}", text_color=c.fg_primary)
+        self.today_lbl.configure(
+            text=f"今日 {db.count_today():,}", text_color=c.fg_secondary
+        )
 
     # ──── 刷新 / 自动刷新 ────
     def refresh(self) -> None:
@@ -635,9 +691,13 @@ class App(ctk.CTk):
     def _update_pin_btn(self) -> None:
         c = theme.current().colors
         if self.cfg.get("window_topmost", False):
-            self._pin_btn.configure(image=self._pin_icon_active, border_color=c.accent)
+            self._pin_btn.configure(
+                image=self._pin_icon_active, fg_color=c.bg_tertiary
+            )
         else:
-            self._pin_btn.configure(image=self._pin_icon_normal, border_color=c.border)
+            self._pin_btn.configure(
+                image=self._pin_icon_normal, fg_color="transparent"
+            )
 
     def _redraw_icons(self) -> None:
         c = theme.current().colors
@@ -656,6 +716,7 @@ class App(ctk.CTk):
             dark_image=_draw_gear_icon(c),
             size=(14, 14),
         )
+        self._refresh_icon_img = None
         self._settings_btn.configure(image=self._gear_icon)
         self._update_pin_btn()
 
