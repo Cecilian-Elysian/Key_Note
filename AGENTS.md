@@ -5,17 +5,25 @@
 - **Windows 单机工具** — pynput 键盘监听 + SQLite 持久化 + customtkinter UI + pystray 托盘
 
 ## 架构约束
-- 主窗口硬编码 `400×550`(逻辑尺寸,DPI 感知下物理像素按缩放系数放大),不响应式
+- 主窗口硬编码 `460×620`(逻辑尺寸,DPI 感知下物理像素按缩放系数放大),不响应式
 - 2 页(统计 / 后台),底部 tab bar 切换,默认 Page 1 = 统计
-  - Page 1 `OverviewPage`(`dashboard.py`):segmented 主卡 + 趋势图 + GH 年度
-  - Page 2 `KeyboardPage`(`keyboard.py`):3 紧凑副卡 + 7×24 + QWERTY 键盘热力图(标签显示为"后台")
+  - Page 1 `OverviewPage`(`dashboard.py`):页头 + 时间范围筛选 + KPI 主卡 + 趋势图 + GH 年度
+  - Page 2 `KeyboardPage`(`keyboard.py`):3 张 KPI 副卡 + 7×24 + QWERTY 键盘热力图(标签显示为"后台")
   - 切换走 `App._switch_page(name)`,auto-refresh 只刷新当前页
 - 设置面板通过主窗口顶部 ⚙ 按钮或托盘菜单 `⚙ → SettingsPanel Toplevel` 打开(两入口共用 `settings_panel.open_or_focus()`),而非页面导航
+
+## UI 设计语言(WinUI 暗色 Fluent)
+- 色板 / 间距 / 圆角 / 字号全部来自 `theme.py`:`ColorTokens` + `SPACE` + `RADIUS` + `FONTS`,页面只取不写
+- 卡片语言:`corner_radius=8` + `border_width=1` + `border_color=border` + `fg_color=bg_secondary`
+- KPI 卡三层:标签(12 secondary)/ 数值(22~32 bold)/ 脚注(11 tertiary)
+- 页面骨架:页头(标题 18 + 副标题 12 + 右侧刷新)→ 筛选/副卡 → 内容卡;空数据画三段式空状态
+- 设置面板:分组标题带强调色竖条,行内左标题 + 常驻说明 / 右控件,行间 1px 分隔线,底栏固定
+- 新增颜色一律进 `theme.py` 的 dark 令牌;页内专属色仍写模块顶部常量
 
 ## 代码风格
 - **声明式 > 手写**: `settings_panel.py` 用 `FieldSpec` + `GROUPS` 描述控件,扩字段只加一行
 - **主题集中管**: `theme.py::ColorTokens` 做颜色 pipeline,页面从 `theme.current().colors` 取
-- **页面内部硬编码专属色**: 不污染全局主题,settings 面板的卡片底/蓝 toggle/黄 ? 直接写常量
+- **页面内部硬编码专属色**: 不污染全局主题,settings 面板的黄色 ? 等直接写常量
 - **BasePage 三接口**: `_build` / `_do_refresh` / `_do_apply_theme`
 - **松耦合回调**: 模块间通过回调(如 `_on_settings_changed`)通信,不走直接导入
 - **注释规范**: 模块头部加中文 docstring 说明功能,大文件内按功能分区加 `# ──── 标题 ────` 章节注释,不添加逐行注释(代码即文档)
@@ -33,7 +41,7 @@
 | 文件 | 职责 |
 |---|---|
 | `config.py` | JSON 持久化 + 默认键字典 |
-| `settings_panel.py` | FieldSpec 声明式设置面板 |
+| `settings_panel.py` | FieldSpec 声明式设置面板(行式布局 + 搜索 + 固定底栏) |
 
 ### 3. 输入监听(键盘 + 鼠标)
 | 文件 | 职责 |
@@ -48,15 +56,15 @@
 ### 5. UI 窗口
 | 文件 | 职责 |
 |---|---|
-| `window.py` | 主窗口 UI(2 页 + tab bar)+ 自动刷新 + 闲置检测 + 设置回调 |
+| `window.py` | 主窗口 UI(标题栏 + 2 页 + tab bar)+ 自动刷新 + 闲置检测 + 设置回调 |
 | `ui/pages/base.py` | BasePage 基类 |
-| `ui/pages/dashboard.py` | OverviewPage(Page 1):segmented 主卡 + 趋势图 + GH 热力图 |
-| `ui/pages/keyboard.py` | KeyboardPage(Page 2):3 副卡 + 7×24 + QWERTY 键盘热力图 |
+| `ui/pages/dashboard.py` | OverviewPage(Page 1):页头 + 筛选 + KPI 主卡 + 趋势图 + GH 热力图 |
+| `ui/pages/keyboard.py` | KeyboardPage(Page 2):页头 + 3 张 KPI 副卡 + 7×24 + QWERTY 键盘热力图 |
 
 ### 6. 主题系统
 | 文件 | 职责 |
 |---|---|
-| `theme.py` | 仅 dark 一套 ColorTokens(2026-07-13 起永久移除亮色)+ apply/recolor |
+| `theme.py` | 仅 dark 一套 ColorTokens(2026-07-13 起永久移除亮色)+ 间距/圆角/字号常量 + apply |
 
 ### 7. 系统托盘
 | 文件 | 职责 |
@@ -81,13 +89,13 @@
 `ui/widgets/chart_utils.py` 已从死代码复活(供 dashboard 趋势图复用)。
 
 ## 硬约束(违反即不收)
-- `theme.py` **只有 dark 一套**,不新增亮色 / 第三方主题,页内专属色直接写模块顶部常量
+- `theme.py` **只有 dark 一套**,不新增亮色 / 第三方主题,页内专属色直接写模块顶部常量;只允许往现有 dark 令牌里加字段(色值 / 间距 / 圆角 / 字号),不加第二套主题
 - **不建新文件**,扩功能优先走现有模块(扩 `FieldSpec` 加字段 / 扩 `tray.py` 加方法 / 扩 `window.py` 加回调分支)
 - **不删死代码**(3 个 ui/pages 占位:`heatmap` / `top_keys` / `settings`),它们是后续页面恢复的占位
 - `build.ps1` 删 PyInstaller 工作目录只删 `build/KeyNote/`,**禁止** `Remove-Item build/`(会把 `build/_data_bak/` 用户备份一起删)
 - `build.ps1` 调 Python 用 `py`(WindowsApps 的 `python.exe` 是占位 stub)
 - `build.ps1` **不写中文字符串**(PowerShell 5.1 解析报错);`KeyNote_Setup.iss` 中文可用(Inno Setup 6 实测通过,2026-09-19)
-- 配色 / 图标颜色 / toggle 进度色等页内专属视觉色,**写在对应页面模块顶部常量**,不污染 `theme.py`
+- 配色 / 图标颜色 / toggle 进度色等页内专属视觉色,**写在对应页面模块顶部常量**,不污染 `theme.py`;通用色一律走 `theme.current().colors`
 
 ## 未来规划
 
@@ -97,7 +105,7 @@
 |---|---|
 | `settings_panel.py` | 加新字段 → GROUPS 加一行 + config.py 加默认值 + 对应模块加处理逻辑 |
 | `dashboard.py` | 新增图表类型 / 布局微调 / 数据维度扩展 |
-| `theme.py` | **不动**—dark 一套已足够 |
+| `theme.py` | **只扩 dark 令牌**(色值 / 间距 / 圆角 / 字号),不加第二套主题 |
 | `window.py` | 加新回调分支处理新配置;扩展第 3 页 |
 | `tray.py` | 加新菜单项 / 托盘交互优化 |
 | `listener.py` | 加新事件类型(如快捷键组合统计)/ 修饰键追踪 |
@@ -108,8 +116,8 @@
 # 1. 取主题色
 c = theme.current().colors
 
-# 2. 声明式字段 (settings_panel.py)
-FieldSpec("switch", "auto_start", "开机自启动")
+# 2. 声明式字段 (settings_panel.py),第 4 参为常驻说明
+FieldSpec("switch", "auto_start", "开机自启动", "随系统登录后自动在托盘启动")
 
 # 3. 页面生命周期
 class XxxPage(BasePage):
