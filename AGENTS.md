@@ -17,7 +17,7 @@
   - Page 5 `SettingsPage`(`Views/SettingsPage`):声明式字段表(分组/搜索/固定底栏)
 - auto-refresh 只刷新当前页(设置页不实现 `IRefreshable`,自然跳过)
 - ⚙ 入口(托盘菜单)统一走 `MainWindow.NavigateTo("settings")`
-- Win11 Mica 材质(`Services/WindowBackdrop.cs`):Mica → Acrylic → 纯色三级回退;有材质时 `Root.Background = null`(铺实底会盖住材质)
+- Win11 Mica 材质(`Services/WindowBackdrop.cs`):Mica → Acrylic → 纯色三级回退;有材质时 `Root.Background = null` + NavigationView pane/content 背景覆写 Transparent(MainWindow.xaml 资源,让材质直透整窗,卡片仍实底)
 - 标题栏:`ExtendsContentIntoTitleBar = true` + `SetTitleBar(AppTitleBar)`
 
 ## UI 设计语言(WinUI 暗色 Fluent,vigil-watt 复刻)
