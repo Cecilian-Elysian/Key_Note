@@ -1,4 +1,5 @@
-"""年度热力图页面(完整实现,未挂载到 App):顶部 4 张统计卡(今日/7日均/30日均/累计) + GhHeatmapWidget 年度热力图,右上角设置按钮打开 SettingsPanel。后续可作第 3 页候选恢复。"""
+"""年度热力图页面:4 张 KPI 统计卡(今日/7 日均/30 日均/累计)+ GitHub 风格年度热力图。
+原为未挂载死代码,2026-10 随侧边栏改版挂载为第 3 页并 Fluent 化。"""
 from __future__ import annotations
 
 import customtkinter as ctk
@@ -15,117 +16,83 @@ class HeatmapPage(BasePage):
         c = theme.current().colors
         self.configure(fg_color=c.bg_primary)
 
-        header = ctk.CTkFrame(self, fg_color=c.bg_primary)
-        header.pack(fill="x", padx=8, pady=(8, 2))
-        header.columnconfigure(0, weight=1)
-        header.columnconfigure(1, weight=0)
-
-        title = ctk.CTkLabel(
-            header,
-            text="年度热力图",
-            font=("", 12, "bold"),
+        # ──── 页头(固定):标题 + 副标题 / 刷新按钮 ────
+        head = ctk.CTkFrame(self, fg_color="transparent")
+        head.pack(fill="x", padx=16, pady=(12, 0))
+        titles = ctk.CTkFrame(head, fg_color="transparent")
+        titles.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(
+            titles, text="热力图", font=theme.FONTS["page_title"],
             text_color=c.fg_primary,
-            anchor="w",
+        ).pack(anchor="w")
+        self._sub = ctk.CTkLabel(
+            titles, text="", font=theme.FONTS["label"],
+            text_color=c.fg_secondary, anchor="w",
         )
-        title.grid(row=0, column=0, sticky="w")
-
-        self._settings_btn = ctk.CTkButton(
-            header,
-            text="⚙ 设置",
-            width=70,
-            height=24,
-            font=("", 10),
-            fg_color=c.bg_secondary,
-            hover_color=c.bg_tertiary,
-            text_color=c.fg_primary,
-            border_width=0,
-            command=self._open_settings,
+        self._sub.pack(anchor="w", pady=(2, 0))
+        self._refresh_btn = ctk.CTkButton(
+            head, text="", image=self.app.refresh_icon(),
+            width=28, height=28, corner_radius=theme.RADIUS["md"],
+            fg_color="transparent", border_width=0,
+            hover_color=c.bg_tertiary, command=self._do_refresh,
         )
-        self._settings_btn.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self._refresh_btn.pack(side="right", pady=(2, 0))
 
-        cards = ctk.CTkFrame(self, fg_color=c.bg_primary)
-        cards.pack(fill="x", padx=8, pady=(4, 4))
-        cards.columnconfigure((0, 1, 2, 3), weight=1, uniform="stat")
-
-        items = [
-            ("today", "今日按键"),
-            ("avg7", "7 日均"),
-            ("avg30", "30 日均"),
-            ("total", "累计按键"),
-        ]
-        self._cards: dict[str, tuple[ctk.CTkFrame, ctk.CTkLabel, ctk.CTkLabel]] = {}
-        for idx, (key, title) in enumerate(items):
-            card = ctk.CTkFrame(cards, fg_color=c.bg_secondary)
-            card.grid(row=0, column=idx, padx=4, pady=4, sticky="nsew")
-            title_lbl = ctk.CTkLabel(
-                card, text=title, font=("", 10), text_color=c.fg_muted
+        # ──── 4 张 KPI 统计卡(标签 / 数值 / 脚注三层) ────
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(10, 8))
+        row.columnconfigure((0, 1, 2, 3), weight=1, uniform="kpi")
+        items = (
+            ("today", "今日按键", "实时统计"),
+            ("avg7", "7 日均", "近 7 天平均"),
+            ("avg30", "30 日均", "近 30 天平均"),
+            ("total", "累计按键", "全部历史"),
+        )
+        self._cards: dict = {}
+        for idx, (key, label, foot) in enumerate(items):
+            card = ctk.CTkFrame(
+                row, fg_color=c.bg_secondary,
+                corner_radius=theme.RADIUS["md"],
+                border_width=1, border_color=c.border,
             )
-            title_lbl.pack(anchor="w", padx=10, pady=(8, 0))
-            value_lbl = ctk.CTkLabel(
-                card, text="—", font=("", 16, "bold"), text_color=c.fg_primary
+            card.grid(row=0, column=idx, sticky="nsew", padx=(0, 8) if idx < 3 else 0)
+            ctk.CTkLabel(
+                card, text=label, font=theme.FONTS["label"],
+                text_color=c.fg_secondary,
+            ).pack(anchor="w", padx=12, pady=(10, 0))
+            val = ctk.CTkLabel(
+                card, text="—", font=theme.FONTS["kpi_value"],
+                text_color=c.fg_primary,
             )
-            value_lbl.pack(anchor="w", padx=10, pady=(2, 8))
-            self._cards[key] = (card, title_lbl, value_lbl)
+            val.pack(anchor="w", padx=12, pady=(2, 0))
+            ctk.CTkLabel(
+                card, text=foot, font=theme.FONTS["caption"],
+                text_color=c.fg_muted,
+            ).pack(anchor="w", padx=12, pady=(2, 10))
+            self._cards[key] = val
 
+        # ──── 年度热力图卡 ────
         from ui.widgets.gh_heatmap import GhHeatmapWidget
 
-        self._heatmap = GhHeatmapWidget(self, days=365, rows=2)
-        self._heatmap.configure(fg_color=c.bg_primary)
-        self._heatmap.pack(fill="both", expand=True, padx=8, pady=(2, 8))
-
-        self._settings_window = None
-
-    def _open_settings(self) -> None:
-        if self._settings_window is not None:
-            try:
-                if self._settings_window.winfo_exists():
-                    self._settings_window.focus_force()
-                    return
-            except Exception:
-                pass
-        self._settings_window = self._build_settings_window()
-
-    def _build_settings_window(self):
-        from settings_panel import SettingsPanel
-
-        top = ctk.CTkToplevel(self)
-        top.title("KeyNote 设置")
-        top.geometry("400x480")
-        top.resizable(False, False)
-
-        app = getattr(self, "app", None)
-        on_save = getattr(app, "_on_settings_changed", None) if app else None
-
-        def _on_save(new_cfg):
-            try:
-                if on_save is not None:
-                    on_save(new_cfg)
-            except Exception:
-                pass
-            try:
-                top.destroy()
-            except Exception:
-                pass
-            self._settings_window = None
-
-        panel = SettingsPanel(top, on_save_callback=_on_save)
-        panel.pack(fill="both", expand=True)
-        cfg = getattr(app, "cfg", {}) if app else {}
-        try:
-            panel.load_values(cfg)
-        except Exception:
-            pass
-        return top
+        card = ctk.CTkFrame(
+            self, fg_color=c.bg_secondary,
+            corner_radius=theme.RADIUS["md"],
+            border_width=1, border_color=c.border,
+        )
+        card.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        self._heatmap = GhHeatmapWidget(
+            card, days=int(self.app.cfg.get("heatmap_days", 365))
+        )
+        self._heatmap.configure(fg_color="transparent")
+        self._heatmap.pack(fill="both", expand=True, padx=10, pady=8)
 
     def _do_refresh(self) -> None:
-        today = db.count_today()
-        avg7 = db.daily_average(7)
-        avg30 = db.daily_average(30)
-        total = db.count_total()
-        self._cards["today"][2].configure(text=f"{today:,}")
-        self._cards["avg7"][2].configure(text=f"{avg7:,}")
-        self._cards["avg30"][2].configure(text=f"{avg30:,}")
-        self._cards["total"][2].configure(text=f"{total:,}")
+        days = int(self.app.cfg.get("heatmap_days", 365))
+        self._sub.configure(text=f"最近 {days} 天的按键分布")
+        self._cards["today"].configure(text=f"{db.count_today():,}")
+        self._cards["avg7"].configure(text=f"{db.daily_average(7):,}")
+        self._cards["avg30"].configure(text=f"{db.daily_average(30):,}")
+        self._cards["total"].configure(text=f"{db.count_total():,}")
         if hasattr(self, "_heatmap"):
             self._heatmap.refresh()
 
@@ -135,19 +102,5 @@ class HeatmapPage(BasePage):
             self.configure(fg_color=c.bg_primary)
         except Exception:
             pass
-        try:
-            self._settings_btn.configure(
-                fg_color=c.bg_secondary,
-                hover_color=c.bg_tertiary,
-                text_color=c.fg_primary,
-            )
-        except Exception:
-            pass
-        for _card, title_lbl, value_lbl in self._cards.values():
-            try:
-                title_lbl.configure(text_color=c.fg_muted)
-                value_lbl.configure(text_color=c.fg_primary)
-            except Exception:
-                pass
         if hasattr(self, "_heatmap"):
             self._heatmap.apply_theme()

@@ -101,11 +101,10 @@ def _set_autostart(enable: bool) -> None:
         _log_failure("autostart", e)
 
 
-# ──── 设置窗口 ────
+# ──── 设置入口 ────
 def _open_settings_toplevel(master):
-    from settings_panel import open_or_focus
-
-    open_or_focus(master, master.cfg, master._on_settings_changed)
+    """打开设置:2026-10 侧边栏改版后设置为主窗口第 5 页,统一走页面导航。"""
+    master._open_settings()
 
 
 # ──── 菜单构建与启动 ────

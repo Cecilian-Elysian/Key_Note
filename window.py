@@ -174,6 +174,8 @@ class _TopTip:
 class App(ctk.CTk):
     PAGE_OVERVIEW = "overview"
     PAGE_KEYBOARD = "keyboard"
+    PAGE_HEATMAP = "heatmap"
+    PAGE_TOP_KEYS = "top_keys"
     PAGE_SETTINGS = "settings"
 
     def __init__(self):
@@ -404,10 +406,12 @@ class App(ctk.CTk):
 
     # ──── 窗口级快捷键 ────
     def _bind_shortcuts(self) -> None:
-        """Alt+1/2 切页,Alt+, 打开设置,Alt+P 切换置顶。"""
+        """Alt+1~5 切页,Alt+P 切换置顶。"""
         self.bind("<Alt-Key-1>", lambda _e: self._switch_page(self.PAGE_OVERVIEW))
         self.bind("<Alt-Key-2>", lambda _e: self._switch_page(self.PAGE_KEYBOARD))
-        self.bind("<Alt-comma>", lambda _e: self._open_settings())
+        self.bind("<Alt-Key-3>", lambda _e: self._switch_page(self.PAGE_HEATMAP))
+        self.bind("<Alt-Key-4>", lambda _e: self._switch_page(self.PAGE_TOP_KEYS))
+        self.bind("<Alt-Key-5>", lambda _e: self._switch_page(self.PAGE_SETTINGS))
         self.bind("<Alt-Key-p>", lambda _e: self._toggle_topmost())
 
     # ──── UI 构建(grid:标题栏通栏 / 左侧边栏 + 竖分隔线 + 内容区) ────
@@ -512,9 +516,15 @@ class App(ctk.CTk):
 
         from ui.pages.dashboard import OverviewPage
         from ui.pages.keyboard import KeyboardPage
+        from ui.pages.heatmap import HeatmapPage
+        from ui.pages.top_keys import TopKeysPage
+        from ui.pages.settings import SettingsPage
 
         self._pages[self.PAGE_OVERVIEW] = OverviewPage(self._body, self)
         self._pages[self.PAGE_KEYBOARD] = KeyboardPage(self._body, self)
+        self._pages[self.PAGE_HEATMAP] = HeatmapPage(self._body, self)
+        self._pages[self.PAGE_TOP_KEYS] = TopKeysPage(self._body, self)
+        self._pages[self.PAGE_SETTINGS] = SettingsPage(self._body, self)
 
         self._build_nav(sidebar)
 
@@ -525,7 +535,9 @@ class App(ctk.CTk):
         items = (
             (self.PAGE_OVERVIEW, "统计", "\uE9D2"),
             (self.PAGE_KEYBOARD, "后台", "\uE765"),
-            ("settings", "设置", "\uE713"),
+            (self.PAGE_HEATMAP, "热力图", "\uE787"),
+            (self.PAGE_TOP_KEYS, "常用按键", "\uE734"),
+            (self.PAGE_SETTINGS, "设置", "\uE713"),
         )
         for name, label, char in items:
             icon = ctk.CTkImage(
@@ -534,17 +546,14 @@ class App(ctk.CTk):
                 size=(16, 16),
             )
             self._nav_icons[name] = icon
-            if name == self.PAGE_SETTINGS and self.PAGE_SETTINGS not in self._pages:
-                cmd = self._open_settings
-            else:
-                cmd = lambda n=name: self._switch_page(n)
             btn = ctk.CTkButton(
                 sidebar, text=label, image=icon, compound="left",
                 anchor="w", border_spacing=10,
                 height=36, corner_radius=theme.RADIUS["md"],
                 fg_color=c.bg_primary, hover_color=c.bg_tertiary,
                 text_color=c.fg_secondary, border_width=0,
-                font=("", 13), command=cmd,
+                font=("", 13),
+                command=lambda n=name: self._switch_page(n),
             )
             btn.pack(fill="x", padx=8, pady=2)
             self._nav_buttons[name] = btn
@@ -638,7 +647,11 @@ class App(ctk.CTk):
     # ──── 刷新 / 自动刷新 ────
     def refresh(self) -> None:
         self.refresh_status()
-        if self._current_page is not None:
+        # 设置页表单不参与 auto-refresh,避免覆盖用户正在编辑的值
+        if (
+            self._current_page is not None
+            and self._current_page_name != self.PAGE_SETTINGS
+        ):
             try:
                 self._current_page.refresh()
             except Exception:
@@ -773,9 +786,15 @@ class App(ctk.CTk):
         self._update_pin_btn()
 
     def _open_settings(self) -> None:
-        from settings_panel import open_or_focus
-
-        open_or_focus(self, self.cfg, self._on_settings_changed)
+        """打开设置页:窗口隐藏时先唤起,再切到设置页(托盘/标题栏 ⚙ 共用)。"""
+        try:
+            if not self.winfo_viewable():
+                self.deiconify()
+            self.lift()
+            self.focus_force()
+        except Exception:
+            pass
+        self._switch_page(self.PAGE_SETTINGS)
 
     # ──── 设置变更处理 ────
     def _on_settings_changed(self, new_cfg: dict) -> None:
