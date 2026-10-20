@@ -4,6 +4,7 @@ using KeyNote.Core.Storage;
 using KeyNote.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
@@ -25,9 +26,11 @@ public sealed partial class MainWindow : Window
         ApplyBackdrop();
         ApplyIcon();
         ResizeForDpi();
+        RestoreWindowPosition();
 
         ContentFrame.Navigate(typeof(Views.StatsPage));
         Nav.SelectedItem = Nav.MenuItems[0];
+        RegisterHotkeys();
 
         // 自动刷新:只刷当前页(设置页不实现 IRefreshable,自然跳过)
         _refreshTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -38,6 +41,7 @@ public sealed partial class MainWindow : Window
         // 关闭窗口 → 最小化到托盘
         AppWindow.Closing += (_, args) =>
         {
+            SaveWindowPosition();
             if (App.Instance.Settings.CloseToTray && !App.Instance.IsQuitting)
             {
                 args.Cancel = true;
@@ -46,7 +50,80 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    /// 记住窗口位置(config._window_geometry = "x,y,w,h")
+    private void SaveWindowPosition()
+    {
+        try
+        {
+            if (!App.Instance.Settings.GetBool("remember_window_pos", true)) return;
+            var p = AppWindow.Position;
+            var s = AppWindow.Size;
+            App.Instance.Settings.Set("_window_geometry", $"{p.X},{p.Y},{s.Width},{s.Height}");
+            App.Instance.Settings.Save();
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.savepos", ex);
+        }
+    }
+
+    private void RestoreWindowPosition()
+    {
+        try
+        {
+            if (!App.Instance.Settings.GetBool("remember_window_pos", true)) return;
+            var raw = App.Instance.Settings.GetString("_window_geometry");
+            if (string.IsNullOrEmpty(raw)) return;
+            var parts = raw.Split(',');
+            if (parts.Length != 4) return;
+            var x = int.Parse(parts[0]);
+            var y = int.Parse(parts[1]);
+            var w = int.Parse(parts[2]);
+            var h = int.Parse(parts[3]);
+            if (w < 400 || h < 300) return;
+            AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(x, y, w, h));
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.restorepos", ex);
+        }
+    }
+
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _refreshTimer;
+
+    /// Alt+1~5 切页
+    private void RegisterHotkeys()
+    {
+        var tags = new[] { "stats", "keyboard", "heatmap", "topkeys", "settings" };
+        for (var i = 0; i < tags.Length; i++)
+        {
+            var tag = tags[i];
+            var accel = new KeyboardAccelerator
+            {
+                Key = Windows.System.VirtualKey.Number1 + i,
+                Modifiers = Windows.System.VirtualKeyModifiers.Menu,
+            };
+            accel.Invoked += (_, e) =>
+            {
+                e.Handled = true;
+                NavigateTo(tag);
+            };
+            Content.KeyboardAccelerators.Add(accel);
+        }
+    }
+
+    /// 内容区不透明度(WinUI3 非打包窗口不支持整窗透明)
+    public void SetContentOpacity(double alpha)
+    {
+        try
+        {
+            Root.Opacity = Math.Clamp(alpha, 0.3, 1.0);
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.opacity", ex);
+        }
+    }
 
     private void RefreshCurrentPage()
     {

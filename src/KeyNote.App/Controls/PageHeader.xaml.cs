@@ -21,6 +21,13 @@ public sealed partial class PageHeader : UserControl
 
     public event EventHandler<RoutedEventArgs>? RefreshRequested;
 
+    /// 是否显示刷新钮(设置页不参与自动刷新,隐藏)
+    public bool ShowRefresh
+    {
+        get => RefreshButton.Visibility == Visibility.Visible;
+        set => RefreshButton.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     public string Title
     {
         get => (string)GetValue(TitleProperty);

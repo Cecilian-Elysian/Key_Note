@@ -19,8 +19,67 @@ public partial class App : Application
     public TrayService Tray { get; private set; } = null!;
 
     private bool _quitting;
+    private int _idlePauseMin;
+    private DateTime _lastActivity = DateTime.Now;
+    private bool _idlePaused;
 
     public bool IsQuitting => _quitting;
+
+    /// 内容区不透明度(WinUI3 非打包窗口不支持整窗透明,退化为内容透明度)
+    public void ApplyWindowAlpha(double alpha)
+    {
+        try
+        {
+            if (WindowService.Current is MainWindow mw) mw.SetContentOpacity(alpha);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("app.alpha", ex);
+        }
+    }
+
+    /// Alt+1~5 快捷键(页内切换)
+    public void ApplyHotkeySettings()
+    {
+        // 快捷键在 MainWindow 构造时注册,此处仅保留钩子以便设置变更时刷新
+    }
+
+    /// 闲置自动暂停
+    public void ApplyIdlePause(int minutes)
+    {
+        _idlePauseMin = Math.Max(0, minutes);
+        _lastActivity = DateTime.Now;
+    }
+
+    private void OnActivity()
+    {
+        _lastActivity = DateTime.Now;
+        if (_idlePaused && _idlePauseMin > 0)
+        {
+            _idlePaused = false;
+            Hooks.Resume();
+            if (WindowService.Current is MainWindow mw) mw.UpdateStatus(true);
+        }
+    }
+
+    private void CheckIdle()
+    {
+        try
+        {
+            if (_idlePauseMin <= 0) return;
+            var idle = DateTime.Now - _lastActivity;
+            if (idle.TotalMinutes >= _idlePauseMin && !_idlePaused && !Hooks.IsPaused)
+            {
+                _idlePaused = true;
+                Hooks.Pause();
+                if (WindowService.Current is MainWindow mw) mw.UpdateStatus(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("app.idle", ex);
+        }
+    }
 
     public App()
     {
@@ -51,7 +110,15 @@ public partial class App : Application
 
         // 钩子:全局键鼠监听
         Hooks = new InputHookService();
+        Hooks.ActivityFired += OnActivity;
         if (Settings.ListenerEnabled) Hooks.Start();
+        ApplyIdlePause(Settings.GetInt("idle_pause_min", 0));
+
+        // 闲置检测定时器
+        var idleTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+        idleTimer.Interval = TimeSpan.FromSeconds(30);
+        idleTimer.Tick += (_, _) => CheckIdle();
+        idleTimer.Start();
 
         // 托盘
         Tray = new TrayService
@@ -80,6 +147,7 @@ public partial class App : Application
 
         // 状态胶囊
         window.UpdateStatus(!Hooks.IsPaused);
+        window.SetContentOpacity(Settings.GetDouble("window_alpha", 1.0));
 
         // 静默/最小化启动
         var silent = HasArg("--silent") || Settings.SilentStart;
