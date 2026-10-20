@@ -90,10 +90,6 @@ public sealed partial class StatsPage : Page, IRefreshable
 
             var streak = KeyNoteDb.StreakDays(365);
             Header.Subtitle = streak > 0 ? $"已连续记录 {streak} 天" : "暂无历史记录";
-
-            Heatmap.Refresh();
-            YearTitle.Text = $"过去 {Heatmap.Days} 天 · 每日贡献";
-            YearSummary.Text = Heatmap.Summary;
         }
         catch (Exception ex)
         {
