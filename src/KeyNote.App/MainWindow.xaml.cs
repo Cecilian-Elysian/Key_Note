@@ -29,6 +29,12 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(typeof(Views.StatsPage));
         Nav.SelectedItem = Nav.MenuItems[0];
 
+        // 自动刷新:只刷当前页(设置页不实现 IRefreshable,自然跳过)
+        _refreshTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _refreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, App.Instance.Settings.RefreshIntervalSec));
+        _refreshTimer.Tick += (_, _) => RefreshCurrentPage();
+        _refreshTimer.Start();
+
         // 关闭窗口 → 最小化到托盘
         AppWindow.Closing += (_, args) =>
         {
@@ -38,6 +44,20 @@ public sealed partial class MainWindow : Window
                 AppWindow.Hide();
             }
         };
+    }
+
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _refreshTimer;
+
+    private void RefreshCurrentPage()
+    {
+        try
+        {
+            if (ContentFrame.Content is Views.IRefreshable r) r.RefreshData();
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.autorefresh", ex);
+        }
     }
 
     // ──── 材质:Mica → Acrylic → 纯色(有材质时 Root 必须无底色,否则盖住) ────
@@ -111,6 +131,7 @@ public sealed partial class MainWindow : Window
         {
             ContentFrame.Navigate(page);
         }
+        RefreshCurrentPage();
     }
 
     /// 切到指定页(托盘⚙入口用)

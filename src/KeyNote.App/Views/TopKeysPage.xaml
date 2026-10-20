@@ -1,11 +1,22 @@
 <Page
     x:Class="KeyNote.App.Views.TopKeysPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KeyNote.App.Controls">
     <ScrollViewer Padding="20,16,20,16">
         <StackPanel Spacing="12">
-            <TextBlock Text="常用按键" Style="{StaticResource PageTitleStyle}" />
-            <TextBlock Text="Top 10 按键次数横向条形图(P2 数据页)" Style="{StaticResource PageSubTitleStyle}" />
+            <controls:PageHeader x:Name="Header" Title="常用按键" Subtitle="按键次数排行 · Top 10" />
+
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Style="{StaticResource CardTitleStyle}" Text="Top 10 按键" />
+                        <TextBlock x:Name="Summary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </Grid>
+                    <controls:BarChartControl x:Name="Chart" Height="320" />
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

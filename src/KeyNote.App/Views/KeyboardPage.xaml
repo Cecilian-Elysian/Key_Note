@@ -1,11 +1,45 @@
 <Page
     x:Class="KeyNote.App.Views.KeyboardPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KeyNote.App.Controls">
     <ScrollViewer Padding="20,16,20,16">
         <StackPanel Spacing="12">
-            <TextBlock Text="后台" Style="{StaticResource PageTitleStyle}" />
-            <TextBlock Text="3 张 KPI 副卡 + 键型胶囊行 + 7×24 + QWERTY 热力图(P2 数据页)" Style="{StaticResource PageSubTitleStyle}" />
+            <controls:PageHeader x:Name="Header" Title="后台" Subtitle="键盘与鼠标活动分布" />
+
+            <!-- 3 张 KPI 副卡 -->
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <controls:KpiCard x:Name="KpiTotal" Grid.Column="0" Label="累计按键" Value="—" />
+                <controls:KpiCard x:Name="KpiMouse" Grid.Column="1" Label="鼠标点击" Value="—" />
+                <controls:KpiCard x:Name="KpiActive" Grid.Column="2" Label="活跃天数" Value="—" />
+            </Grid>
+
+            <!-- 键型分布胶囊行 -->
+            <StackPanel x:Name="TypePillRow" Orientation="Horizontal" Spacing="6" />
+
+            <!-- 7×24 卡 -->
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Style="{StaticResource CardTitleStyle}" Text="7×24 小时活跃度" />
+                        <TextBlock x:Name="HourlySummary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </Grid>
+                    <controls:HourlyGridControl x:Name="HourlyGrid" Height="150" />
+                </StackPanel>
+            </Border>
+
+            <!-- QWERTY 键盘热力图卡 -->
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Style="{StaticResource CardTitleStyle}" Text="按键分布热力图" />
+                        <TextBlock x:Name="KbLegend" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </Grid>
+                    <controls:KeyboardHeatmapControl x:Name="KeyboardHeatmap" />
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

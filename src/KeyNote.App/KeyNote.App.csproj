@@ -16,6 +16,7 @@
     <WindowsSdkPackageVersion>10.0.19041.38</WindowsSdkPackageVersion>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>1.0.0</Version>

@@ -1,15 +1,64 @@
 <Page
     x:Class="KeyNote.App.Views.StatsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KeyNote.App.Controls"
+    xmlns:theme="using:KeyNote.App.Theme">
     <ScrollViewer Padding="20,16,20,16">
         <StackPanel Spacing="12">
-            <TextBlock Text="统计" Style="{StaticResource PageTitleStyle}" />
-            <TextBlock Text="设备行主卡 + 趋势图 + 年度热力图(P2 数据页)" Style="{StaticResource PageSubTitleStyle}" />
+            <controls:PageHeader x:Name="Header" Title="统计" Subtitle="" />
+
+            <!-- 时间范围筛选 -->
+            <SelectorBar x:Name="RangeBar" SelectionChanged="RangeBar_SelectionChanged" HorizontalAlignment="Left">
+                <SelectorBarItem x:Name="RangeToday" Text="今日" IsSelected="False" />
+                <SelectorBarItem x:Name="RangeWeek" Text="近 7 天" IsSelected="False" />
+                <SelectorBarItem x:Name="RangeMonth" Text="近 30 天" IsSelected="True" />
+            </SelectorBar>
+
+            <!-- 设备行式主卡 -->
+            <Border Style="{StaticResource AppCardStyle}" Padding="14,12,14,12">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+                    <FontIcon x:Name="MainGlyph" Grid.Row="0" Grid.Column="0" Glyph="&#xE9D2;"
+                              FontSize="20" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                              VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock x:Name="MainLabel" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
+                               Style="{StaticResource CardTitleStyle}" Text="近 30 天按键" />
+                    <TextBlock x:Name="MainValue" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
+                               Style="{StaticResource CardHeroValueStyle}" Text="—" />
+
+                    <ProgressBar x:Name="MainProgress" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                 Margin="0,10,0,0" Height="6" Minimum="0" Maximum="1"
+                                 Visibility="Collapsed" />
+
+                    <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                        <ContentControl x:Name="MainPillHost" VerticalAlignment="Center" />
+                        <TextBlock x:Name="MainSub" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 趋势图卡 -->
             <Border Style="{StaticResource AppCardStyle}">
-                <StackPanel>
-                    <TextBlock Text="占位页" Style="{StaticResource CardLabelStyle}" />
-                    <TextBlock Text="—" Style="{StaticResource CardHeroValueStyle}" />
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
+                                   Text="近 30 天按键趋势" />
+                    </Grid>
+                    <controls:TrendChartControl x:Name="TrendChart" Height="220" />
+                </StackPanel>
+            </Border>
+
+            <!-- 年度热力图卡 -->
+            <Border Style="{StaticResource AppCardStyle}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock x:Name="YearTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
+                                   Text="过去 365 天 · 每日贡献" />
+                        <TextBlock x:Name="YearSummary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                   VerticalAlignment="Center" Text="" />
+                    </Grid>
+                    <controls:GhHeatmapControl x:Name="Heatmap" Height="200" />
                 </StackPanel>
             </Border>
         </StackPanel>
