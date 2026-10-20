@@ -55,7 +55,7 @@ class OverviewPage(BasePage):
             unselected_color=c.bg_tertiary, unselected_hover_color=c.bg_tertiary,
             text_color=c.fg_primary,
         )
-        seg.pack(fill="x", padx=16, pady=(10, 8))
+        seg.pack(anchor="w", padx=16, pady=(10, 8))
         self._seg = seg
         self._stat_idx = 2
         self._trend_fp: tuple | None = None
