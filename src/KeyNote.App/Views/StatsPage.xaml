@@ -5,7 +5,7 @@
     xmlns:controls="using:KeyNote.App.Controls"
     xmlns:theme="using:KeyNote.App.Theme">
     <ScrollViewer Padding="20,16,20,16">
-        <StackPanel Spacing="12">
+        <StackPanel Spacing="10">
             <controls:PageHeader x:Name="Header" Title="统计" Subtitle="" />
 
             <!-- 时间范围筛选 -->
@@ -15,6 +15,16 @@
                 <SelectorBarItem x:Name="RangeMonth" Text="近 30 天" IsSelected="True" />
             </SelectorBar>
 
+            <!-- 3 张 KPI 卡 -->
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <controls:KpiCard x:Name="KpiTotal" Grid.Column="0" Label="累计按键" Value="—" />
+                <controls:KpiCard x:Name="KpiMouse" Grid.Column="1" Label="鼠标点击" Value="—" />
+                <controls:KpiCard x:Name="KpiActive" Grid.Column="2" Label="活跃天数" Value="—" />
+            </Grid>
+
+            <!-- 键型分布胶囊行 -->
+            <StackPanel x:Name="TypePillRow" Orientation="Horizontal" Spacing="6" />
+
             <!-- 趋势图卡 -->
             <Border Style="{StaticResource AppCardStyle}">
                 <StackPanel Spacing="4">
@@ -22,31 +32,8 @@
                         <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
                                    Text="按键趋势" />
                     </Grid>
-                    <controls:TrendChartControl x:Name="TrendChart" Height="220" />
+                    <controls:TrendChartControl x:Name="TrendChart" Height="200" />
                 </StackPanel>
-            </Border>
-
-            <!-- 设备行式主卡 -->
-            <Border Style="{StaticResource AppCardStyle}" Padding="14,12,14,12">
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto">
-                    <FontIcon x:Name="MainGlyph" Grid.Row="0" Grid.Column="0" Glyph="&#xE9D2;"
-                              FontSize="20" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                              VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <TextBlock x:Name="MainLabel" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
-                               Style="{StaticResource CardTitleStyle}" Text="按键总量" />
-                    <TextBlock x:Name="MainValue" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
-                               Style="{StaticResource CardHeroValueStyle}" Text="—" />
-
-                    <ProgressBar x:Name="MainProgress" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
-                                 Margin="0,10,0,0" Height="6" Minimum="0" Maximum="1"
-                                 Visibility="Collapsed" />
-
-                    <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
-                        <ContentControl x:Name="MainPillHost" VerticalAlignment="Center" />
-                        <TextBlock x:Name="MainSub" Style="{StaticResource CardFootnoteStyle}"
-                                   VerticalAlignment="Center" Text="" />
-                    </StackPanel>
-                </Grid>
             </Border>
         </StackPanel>
     </ScrollViewer>

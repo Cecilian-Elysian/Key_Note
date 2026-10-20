@@ -7,16 +7,6 @@
         <StackPanel Spacing="12">
             <controls:PageHeader x:Name="Header" Title="后台" Subtitle="键盘与鼠标活动分布" />
 
-            <!-- 3 张 KPI 副卡 -->
-            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
-                <controls:KpiCard x:Name="KpiTotal" Grid.Column="0" Label="累计按键" Value="—" />
-                <controls:KpiCard x:Name="KpiMouse" Grid.Column="1" Label="鼠标点击" Value="—" />
-                <controls:KpiCard x:Name="KpiActive" Grid.Column="2" Label="活跃天数" Value="—" />
-            </Grid>
-
-            <!-- 键型分布胶囊行 -->
-            <StackPanel x:Name="TypePillRow" Orientation="Horizontal" Spacing="6" />
-
             <!-- 7×24 卡 -->
             <Border Style="{StaticResource AppCardStyle}">
                 <StackPanel Spacing="6">

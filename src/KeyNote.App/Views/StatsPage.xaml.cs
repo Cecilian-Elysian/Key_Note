@@ -7,15 +7,25 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace KeyNote.App.Views;
 
-/// 统计页(Page 1):设备行式主卡 + 电量图趋势 + 年度热力图。
+/// 统计页(Page 1):3 张 KPI 卡 + 键型分布胶囊 + 按键趋势。
 public sealed partial class StatsPage : Page, IRefreshable
 {
     private const int RangeIdxToday = 0;
     private const int RangeIdxWeek = 1;
     private const int RangeIdxMonth = 2;
 
+    private static readonly (string Type, string Label, Windows.UI.Color Color)[] TypeMeta =
+    {
+        ("letter", "字母", Windows.UI.Color.FromArgb(0xFF, 0x0A, 0x84, 0xFF)),
+        ("digit", "数字", Windows.UI.Color.FromArgb(0xFF, 0x34, 0xC7, 0x59)),
+        ("symbol", "符号", Windows.UI.Color.FromArgb(0xFF, 0xFA, 0xAA, 0x17)),
+        ("modifier", "修饰键", Windows.UI.Color.FromArgb(0xFF, 0xBF, 0x5A, 0xF2)),
+        ("function", "功能键", Windows.UI.Color.FromArgb(0xFF, 0x8E, 0x8E, 0x93)),
+    };
+
     private int _range = RangeIdxMonth;
     private string? _fp;
+    private string? _typeFp;
 
     public StatsPage()
     {
@@ -39,54 +49,15 @@ public sealed partial class StatsPage : Page, IRefreshable
     {
         try
         {
-            var key = _range switch
-            {
-                RangeIdxToday => "today",
-                RangeIdxWeek => "week",
-                _ => "month",
-            };
+            KpiTotal.Value = KeyNoteDb.CountTotal().ToString("N0");
+            KpiMouse.Value = KeyNoteDb.MouseTotal().ToString("N0");
+            KpiActive.Value = KeyNoteDb.DailyActiveDays(30).ToString("N0");
+            KpiTotal.Footnote = $"今日 +{KeyNoteDb.CountToday():N0}";
+            KpiMouse.Footnote = MouseFoot();
+            KpiActive.Footnote = "近 30 天";
 
-            long value;
-            List<ChartPoint> points;
-            string title;
-            switch (_range)
-            {
-                case RangeIdxToday:
-                    value = KeyNoteDb.CountToday();
-                    points = KeyNoteDb.HourlyToday()
-                        .Select(r => new ChartPoint(r.Count, $"{DateTimeOffset.FromUnixTimeMilliseconds(r.HourTs).LocalDateTime:HH:mm}"))
-                        .ToList();
-                    title = "按键趋势 · 逐时";
-                    break;
-                case RangeIdxWeek:
-                {
-                    var rows = KeyNoteDb.DailyCounts(7);
-                    value = rows.Sum(r => r.Count);
-                    points = rows.Select(r => new ChartPoint(r.Count,
-                        DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
-                    title = "按键趋势";
-                    break;
-                }
-                default:
-                {
-                    var rows = KeyNoteDb.DailyCounts(30);
-                    value = rows.Sum(r => r.Count);
-                    points = rows.Select(r => new ChartPoint(r.Count,
-                        DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
-                    title = "按键趋势";
-                    break;
-                }
-            }
-
-            var fp = $"{key}|{value}|{points.Count}";
-            if (fp != _fp)
-            {
-                _fp = fp;
-                MainValue.Text = value > 0 ? value.ToString("N0") : "—";
-                TrendTitle.Text = title;
-                TrendChart.SetData(points);
-                UpdateMainFooter();
-            }
+            UpdateTypePills();
+            UpdateTrend();
 
             var streak = KeyNoteDb.StreakDays(365);
             Header.Subtitle = streak > 0 ? $"已连续记录 {streak} 天" : "暂无历史记录";
@@ -97,53 +68,87 @@ public sealed partial class StatsPage : Page, IRefreshable
         }
     }
 
-    /// 主卡脚注:今日模式 → 进度条(今日 vs 近 30 日均)+ 较昨日胶囊;其他模式 → 日均
-    private void UpdateMainFooter()
+    private void UpdateTrend()
     {
-        try
+        var key = _range switch
         {
-            if (_range == RangeIdxToday)
-            {
-                var avg30 = Math.Max(KeyNoteDb.DailyAverage(30), 1);
-                var today = KeyNoteDb.CountToday();
-                var ratio = Math.Min(today / (double)avg30, 1.0);
-                MainProgress.Visibility = Visibility.Visible;
-                MainProgress.Value = ratio;
-                MainProgress.Foreground = ratio >= 1.0 ? UiColors.Brush(UiColors.Success) : UiColors.Brush(UiColors.Accent);
+            RangeIdxToday => "today",
+            RangeIdxWeek => "week",
+            _ => "month",
+        };
 
-                var (text, color) = YesterdayCompare();
-                MainPillHost.Content = text.Length > 0 ? PillFactory.Create(text, color) : null;
-                MainSub.Text = $"日均 {KeyNoteDb.DailyAverage(30):N0} 次";
-            }
-            else
-            {
-                MainProgress.Visibility = Visibility.Collapsed;
-                MainPillHost.Content = null;
-                var days = _range == RangeIdxWeek ? 7 : 30;
-                MainSub.Text = $"日均 {KeyNoteDb.DailyAverage(days):N0} 次";
-            }
-        }
-        catch (Exception ex)
+        List<ChartPoint> points;
+        string title;
+        switch (_range)
         {
-            Core.Utils.CrashLog.Write("stats.footer", ex);
+            case RangeIdxToday:
+                points = KeyNoteDb.HourlyToday()
+                    .Select(r => new ChartPoint(r.Count, $"{DateTimeOffset.FromUnixTimeMilliseconds(r.HourTs).LocalDateTime:HH:mm}"))
+                    .ToList();
+                title = "按键趋势 · 逐时";
+                break;
+            case RangeIdxWeek:
+            {
+                var rows = KeyNoteDb.DailyCounts(7);
+                points = rows.Select(r => new ChartPoint(r.Count,
+                    DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
+                title = "按键趋势";
+                break;
+            }
+            default:
+            {
+                var rows = KeyNoteDb.DailyCounts(30);
+                points = rows.Select(r => new ChartPoint(r.Count,
+                    DateTimeOffset.FromUnixTimeMilliseconds(r.DayTs).LocalDateTime.ToString("MM-dd"))).ToList();
+                title = "按键趋势";
+                break;
+            }
         }
+
+        var fp = $"{key}|{points.Count}|{points.LastOrDefault()?.Value ?? 0}";
+        if (fp == _fp) return;
+        _fp = fp;
+        TrendTitle.Text = title;
+        TrendChart.SetData(points);
     }
 
-    /// 今日 vs 昨日对比 → (胶囊文本, 语义色)
-    private static (string, Windows.UI.Color) YesterdayCompare()
+    private static string MouseFoot()
     {
-        var today = DateTime.Today;
-        var byDay = new Dictionary<DateTime, long>();
-        foreach (var (ts, c) in KeyNoteDb.DailyCounts(2))
+        var rows = KeyNoteDb.MouseByButton();
+        var total = KeyNoteDb.MouseTotal();
+        if (rows.Count == 0 || total <= 0) return "暂无数据";
+        var name = rows[0].Button switch
         {
-            byDay[DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime.Date] = c;
+            "left" => "左键",
+            "right" => "右键",
+            "middle" => "中键",
+            "x1" => "侧键 1",
+            "x2" => "侧键 2",
+            _ => rows[0].Button,
+        };
+        return $"{name} {Math.Round(rows[0].Count / (double)total * 100)}%";
+    }
+
+    private void UpdateTypePills()
+    {
+        var rows = KeyNoteDb.KeyTypeDistribution().ToDictionary(r => r.Type, r => r.Count);
+        var fp = string.Join(",", rows.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}:{kv.Value}"));
+        if (fp == _typeFp) return;
+        _typeFp = fp;
+
+        var total = rows.Values.Sum();
+        TypePillRow.Children.Clear();
+        if (total <= 0)
+        {
+            TypePillRow.Visibility = Visibility.Collapsed;
+            return;
         }
-        var y = byDay.GetValueOrDefault(today.AddDays(-1));
-        var t = byDay.GetValueOrDefault(today);
-        if (y <= 0) return ("", UiColors.FgMuted);
-        var pct = (t - y) / (double)y * 100;
-        if (pct > 0.5) return ($"较昨日 +{pct:F0}%", UiColors.Success);
-        if (pct < -0.5) return ($"较昨日 −{Math.Abs(pct):F0}%", UiColors.Danger);
-        return ("与昨日持平", UiColors.FgMuted);
+        TypePillRow.Visibility = Visibility.Visible;
+        foreach (var (type, label, color) in TypeMeta)
+        {
+            var count = rows.GetValueOrDefault(type);
+            var pct = Math.Round(count / (double)total * 100);
+            TypePillRow.Children.Add(PillFactory.Create($"{label} {pct}%", color));
+        }
     }
 }
