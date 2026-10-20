@@ -3,6 +3,8 @@ AppName=KeyNote
 AppVersion=1.0.0
 AppPublisher=KeyNote Project
 DefaultDirName={localappdata}\KeyNote
+DisableDirPage=no
+UsePreviousAppDir=no
 DefaultGroupName=KeyNote
 OutputDir=installer
 OutputBaseFilename=KeyNote_Setup
@@ -22,7 +24,7 @@ Name: "autostart"; Description: "开机自动启动 KeyNote"; GroupDescription: 
 
 [Files]
 ; .NET self-contained 发布产物(含 WindowsAppSDK 运行时)
-Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\*"; DestDir: "{app}"; Excludes: "KeyNote_Setup.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
