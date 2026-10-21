@@ -9,27 +9,28 @@
 - 双工程:`src/KeyNote.App`(WinUI 壳 + 页面 + 控件)与 `src/KeyNote.Core`(无 UI:设置 / 存储 / 钩子 / 工具)
 - 主窗口硬编码 800×600(按 DPI 缩放),不响应式
 - 布局:48px 通栏标题栏(状态胶囊)+ NavigationView 左侧导航(5 页)+ 内容区,切换走 `App._switch_page` 等价的 `MainWindow.NavigateTo(tag)`
-- 5 页侧边栏导航(Segoe 字形图标 + 药丸选中态 + 左缘 accent 竖条),快捷键 Alt+1~5
-  - Page 1 `StatsPage`(`Views/StatsPage`):页头 + 时间筛选(SelectorBar) + 设备行主卡(进度条/对比胶囊)+ 趋势图(悬停十字线)+ GH 年度热力图
-  - Page 2 `KeyboardPage`(`Views/KeyboardPage`):3 张 KPI 副卡 + 键型分布胶囊行 + 7×24 + QWERTY 键盘热力图
-  - Page 3 `HeatmapPage`(`Views/HeatmapPage`):4 张 KPI 统计卡 + 年度热力图
-  - Page 4 `TopKeysPage`(`Views/TopKeysPage`):Top 10 按键条形图
+- 5 页侧边栏导航(Segoe 字形图标 + NavigationView 默认选中态),快捷键 Alt+1~5
+  - Page 1 `StatsPage`(`Views/StatsPage`):页头 + 时间筛选(SelectorBar)+ 3 张 KPI 卡(随筛选口径)+ 键型分布胶囊行 + 趋势图(悬停十字线)
+  - Page 2 `KeyboardPage`(`Views/KeyboardPage`):7×24 活跃度热力图 + QWERTY 键盘热力图
+  - Page 3 `HeatmapPage`(`Views/HeatmapPage`):GH 年度热力图(列数按 heatmap_days 动态)
+  - Page 4 `TopKeysPage`(`Views/TopKeysPage`):Top 10 按键条形图(合并大小写口径)
   - Page 5 `SettingsPage`(`Views/SettingsPage`):声明式字段表(分组/搜索/固定底栏)
+- 页面骨架统一:页头固定行(不随内容滚走)+ 内容滚动行;数据页统一 `Views/PageRefresh.Wire` 接线
 - auto-refresh 只刷新当前页(设置页不实现 `IRefreshable`,自然跳过)
 - ⚙ 入口(托盘菜单)统一走 `MainWindow.NavigateTo("settings")`
 - Win11 Mica 材质(`Services/WindowBackdrop.cs`):Mica → Acrylic → 纯色三级回退;有材质时 `Root.Background = null` + NavigationView pane/content 背景覆写 Transparent(MainWindow.xaml 资源,让材质直透整窗,卡片仍实底)
 - 标题栏:`ExtendsContentIntoTitleBar = true` + `SetTitleBar(AppTitleBar)`
 
 ## UI 设计语言(WinUI 暗色 Fluent,vigil-watt 复刻)
-- 色板 / 间距 / 圆角 / 字号:`theme` 概念在 C# 侧落为 `App.xaml` 资源字典(卡片/字号层级)+ `Theme/UiColors.cs`(语义色)+ `Services/UiPalette.cs`(状态色板)
+- 色板 / 间距 / 圆角 / 字号:`theme` 概念在 C# 侧落为 `App.xaml` 资源字典(卡片/字号层级)+ `Theme/UiColors.cs`(语义色,唯一色板真源)
 - 卡片语言:`AppCardStyle`(radius 8 + 1px 描边 + CardBackgroundFillColorDefaultBrush)/ `AppKpiCardStyle`
-- KPI 卡三层:标签(12 secondary)/ 数值(24 bold,主卡 hero 32)/ 脚注(11 tertiary)
-- 页面骨架:页头(`PageHeader`:标题 18 + 副标题 12 + 右侧"⟳ 刷新"图标+文字钮,padding 20,16)→ 筛选/副卡 → 内容卡;空数据画三段式空状态(图标字形 + 主文案 + 说明)
-- 主卡(vigil-watt 设备行):图标 + 标签 + 右侧 hero 数值 + 进度条(达标转绿)+ 语义胶囊 + 脚注
-- 趋势图(vigil-watt 电量图签名):2px 圆角线 + 同色 15% 面积 + ≤40 点圆点 + 线端值标签 + 悬停十字虚线/白描边圆点/圆角气泡
+- KPI 卡三层:标签(12 secondary)/ 数值(24 bold)/ 脚注(11 tertiary)
+- 页面骨架:页头(`PageHeader`:标题 18 + 副标题 12 + 右侧"⟳ 刷新"图标+文字钮)→ 筛选/副卡 → 内容卡;空数据画三段式空状态(`Controls/EmptyStateView`:图标字形 + 主文案 + 说明)
+- 趋势图(vigil-watt 电量图签名):2px 圆角线 + 同色 15% 面积 + ≤40 点圆点 + 线端值标签 + 悬停十字虚线/白描边圆点/圆角气泡(`Controls/ChartTip` 气泡)
 - 胶囊(vigil-watt 徽标):语义色文字 + 同色 16% tint 底 `radius 4`(`Helpers/PillFactory`)
 - 设置面板:分组标题带强调色竖条,行内左标题 + 常驻说明 / 右控件,行间 1px 分隔线,底栏固定
 - 新增颜色一律进 `Theme/UiColors.cs` 或 `App.xaml` 资源;页内专属色写模块顶部常量
+- 字号只允许用 `App.xaml` 里的样式令牌(11/12/13/14/15/18/24),code-behind 不写字面量字号
 
 ## 代码风格
 - **声明式 > 手写**: `SettingsPage` 用 `FieldSpec` 数组描述控件,扩字段只加一行
@@ -51,18 +52,24 @@
 ### 2. 配置管理
 | 文件 | 职责 |
 |---|---|
-| `src/KeyNote.Core/Settings/AppSettings.cs` | config.json 持久化(字典模型保留未知键 + 原子写)|
-| `src/KeyNote.App/Views/SettingsPage.xaml(.cs)` | 声明式设置面板(分组 / 搜索 / 固定底栏) |
+| `src/KeyNote.Core/Settings/AppSettings.cs` | config.json 持久化(字典模型保留未知键 + 原子写 + 读写加锁)|
+| `src/KeyNote.App/Views/SettingsPage.xaml(.cs)` | 设置页主体(行构建 / 过滤 / 保存 / 恢复默认)|
+| `src/KeyNote.App/Views/Settings/SettingSchema.cs` | 设置项声明表(`FieldKind` / `FieldSpec` / 分组,扩字段只加一行)|
+| `src/KeyNote.App/Views/Settings/FieldEditors.cs` | 设置项编辑器工厂(开关/滑块/下拉/数字框/路径/动作)+ 无障碍名称 |
+| `src/KeyNote.App/Views/Settings/SettingsActions.cs` | 设置页动作(更新检查结果落地 + 备份/VACUUM/CSV 分发)|
 
 ### 3. 输入监听(键盘 + 鼠标)
 | 文件 | 职责 |
 |---|---|
-| `src/KeyNote.Core/Input/InputHookService.cs` | Win32 LL 钩子 + 按键分类(letter/digit/symbol/modifier/function)+ 80ms 去重 + 暂停/恢复 |
+| `src/KeyNote.Core/Input/InputHookService.cs` | Win32 LL 钩子 + 按键分类(letter/digit/symbol/function)+ 键盘状态自维护(大小写/AltGr)+ 按物理按下计数 + 暂停/恢复 |
 
 ### 4. 数据持久化
 | 文件 | 职责 |
 |---|---|
-| `src/KeyNote.Core/Storage/KeyNoteDb.cs` | SQLite 读写分离连接 + 聚合(分钟/小时/天/周×时/按键/键型/鼠标)+ 迁移 v1~v6 + 备份/清理/CSV |
+| `src/KeyNote.Core/Storage/KeyNoteDb.cs` | 连接管理 + 聚合查询(分钟/小时/天/按键/键型/鼠标)+ 时间桶工具 |
+| `src/KeyNote.Core/Storage/KeyNoteDb.Migrations.cs` | 迁移 v1~v6(Python 版库兼容)+ 会话记录 |
+| `src/KeyNote.Core/Storage/KeyNoteDb.Writer.cs` | 写入队列 + 后台 writer 线程 + 聚合 upsert + 保留期清理 |
+| `src/KeyNote.Core/Storage/KeyNoteDb.Maintenance.cs` | 备份/导出/VACUUM/健康检查 + 关闭收尾 |
 
 ### 5. UI 窗口
 | 文件 | 职责 |
@@ -70,24 +77,27 @@
 | `src/KeyNote.App/MainWindow.xaml(.cs)` | 主窗口(标题栏 + 侧边栏 + 5 页 + Mica + 自动刷新 + 关闭到托盘 + Alt+1~5)|
 | `src/KeyNote.App/App.xaml(.cs)` | 应用根:设置加载 → DB 初始化 → 钩子 → 托盘 → 窗口显隐策略 + 全局异常落盘 |
 | `src/KeyNote.App/Views/*.xaml(.cs)` | 5 个页面 + `IRefreshable` |
-| `src/KeyNote.App/Controls/*.xaml(.cs)` | KpiCard / PageHeader / TrendChartControl / GhHeatmapControl / HourlyGridControl / KeyboardHeatmapControl / BarChartControl |
-| `src/KeyNote.App/Theme/UiColors.cs` | 暗色语义色板 |
+| `src/KeyNote.App/Views/PageRefresh.cs` | 页面刷新接线助手(页头刷新 + 首次加载 + 异常落盘)|
+| `src/KeyNote.App/Controls/*.xaml(.cs)` | KpiCard / PageHeader / TrendChartControl / GhHeatmapControl / HourlyGridControl / KeyboardHeatmapControl / BarChartControl / ChartTip / EmptyStateView |
+| `src/KeyNote.App/Theme/UiColors.cs` | 暗色语义色板(唯一色板真源)|
 | `src/KeyNote.App/Helpers/PillFactory.cs` | 胶囊徽标工厂 |
+| `src/KeyNote.App/Helpers/TrayNative.cs` | 托盘 Win32 互操作层(P/Invoke + 结构体,纯声明)|
 
 ### 6. 系统托盘与应用服务
 | 文件 | 职责 |
 |---|---|
-| `src/KeyNote.App/Services/TrayService.cs` | 纯 Win32 托盘(隐藏消息窗口 + Shell_NotifyIconW + TrackPopupMenuEx,动态菜单)|
+| `src/KeyNote.App/Services/TrayService.cs` | 纯 Win32 托盘(隐藏消息窗口 + Shell_NotifyIconW + 命令分发)|
+| `src/KeyNote.App/Services/TrayMenuBuilder.cs` | 托盘菜单构建(每次右键实时取数)+ 命令 ID |
 | `src/KeyNote.App/Services/AutostartService.cs` | 开机自启(HKCU Run 注册表) |
 | `src/KeyNote.App/Services/WindowBackdrop.cs` | Mica/Acrylic 能力探测与回退 |
-| `src/KeyNote.App/Services/UiPalette.cs` | 状态语义色板(accent/低电/中/正常/离线) |
 | `src/KeyNote.App/Services/UpdateService.cs` | 应用内更新检查(GitHub Releases API + 组件式版本比较 + 打开 Release 页) |
+| `src/KeyNote.App/Services/MaintenanceService.cs` | 备份 / VACUUM / CSV 导出(托盘与设置页共用)|
 
 ### 7. 构建与部署
 | 文件 | 职责 |
 |---|---|
-| `build.ps1` | `dotnet publish`(Release/x64/self-contained)→ `dist/` + 用户数据备份恢复 |
-| `KeyNote_Setup.iss` | Inno Setup 安装器(打包 `dist/*`) |
+| `build.ps1` | `dotnet publish`(Release/x64)→ 瘦身 → 体积报告 → 干净 staging → Inno Setup → `dist/` + `installer/` |
+| `KeyNote_Setup.iss` | Inno Setup 安装器(打包 `build/setup_stage/*`,排除用户数据)|
 
 安装包编译:`& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" KeyNote_Setup.iss` → `installer/KeyNote_Setup.exe`(本机 Inno Setup 6 在 `%LOCALAPPDATA%\Programs`,不在 PATH)。版本以 `KeyNote.App.csproj` 的 `<Version>` 为唯一真源,`build.ps1` 经 `/DAppVer=` 注入 `.iss`。
 
@@ -98,10 +108,13 @@
 - 配色 / 状态色写 `Theme/UiColors.cs` 或页面顶部常量,不散落字面量
 - 数据库 schema 与 Python 版保持一致(v1~v6),不破坏既有 `keynote.db`
 - WinUI3 非打包窗口不支持整窗透明:`window_alpha` 退化为**内容区**不透明度,不得宣称整窗透明
+- **安装包不得夹带用户数据**:ISCC 只打包 `build/setup_stage`(发布产物),`keynote.db*` / `config.json` / `backups/` 一律排除
+- 改键型分类或统计口径时,必须在 README「统计口径变更」记一笔
 
 ## 待办(TODO)
 - [x] ~~应用内更新检查~~:已实现(`Services/UpdateService.cs` + 设置页「关于」分组 + 托盘入口 + 启动每日静默检查)
 - [ ] **应用内静默更新**(下载 + 校验 + 拉起安装):当前走浏览器手动下载,后续评估
+- [ ] **发布体积瘦身**:`dist` 95MB 中约 88MB 是 Windows App SDK 运行时;可裁未用模块约 60 文件 / 12MB,`Microsoft.Windows.SDK.NET.dll`(23.8MB)需单独实验验证
 
 ## 已知取舍(Python → C# 迁移)
 - `window_alpha`:WinUI3 不支持整窗 alpha,改为内容区不透明度
