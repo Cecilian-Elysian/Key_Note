@@ -1,9 +1,8 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using System.Text;
+using KeyNote.App.Helpers;
 using KeyNote.App.Theme;
-using KeyNote.Core.Storage;
 using KeyNote.Core.Utils;
 
 namespace KeyNote.App.Services;
@@ -18,31 +17,8 @@ public sealed class TrayService : IDisposable
     private const int WmLButtonDblClk = 0x0203;
     private const int WmRButtonUp = 0x0205;
 
-    private const uint MfString = 0x0000;
-    private const uint MfGrayed = 0x0001;
-    private const uint MfPopup = 0x0010;
-    private const uint MfSeparator = 0x0800;
-    private const uint MfChecked = 0x0008;
-    private const uint MfDefault = 0x0400;
-    private const uint TpmReturnCmd = 0x0100;
-    private const uint TpmRightButton = 0x0002;
-
-    private const int IdShow = 1;
-    private const int IdPause = 2;
-    private const int IdSettings = 3;
-    private const int IdUpdateCheck = 4;
-    private const int IdBackup = 10;
-    private const int IdVacuum = 11;
-    private const int IdRetentionBase = 20;
-    private const int IdQuit = 99;
-
-    private static readonly (string Label, int Days)[] RetentionOptions =
-    {
-        ("永久", 0), ("7 天", 7), ("180 天", 180), ("365 天", 365), ("730 天", 730),
-    };
-
     /// explorer 重启后需要重新挂载托盘图标
-    private static readonly uint TaskbarCreatedMsg = RegisterWindowMessageW("TaskbarCreated");
+    private static readonly uint TaskbarCreatedMsg = TrayNative.RegisterWindowMessageW("TaskbarCreated");
 
     private Thread? _thread;
     private uint _threadId;
@@ -87,7 +63,7 @@ public sealed class TrayService : IDisposable
             data.szInfo = message;
             data.szInfoTitle = "KeyNote";
             data.uFlags = 0x10 /* NIF_INFO */;
-            Shell_NotifyIconW(0x01 /* NIM_MODIFY */, ref data);
+            TrayNative.Shell_NotifyIconW(0x01 /* NIM_MODIFY */, ref data);
         }
         catch
         {
@@ -98,7 +74,7 @@ public sealed class TrayService : IDisposable
     public void Stop()
     {
         RemoveIcon();
-        if (_threadId != 0) PostThreadMessage(_threadId, 0x0012 /* WM_QUIT */, 0, 0);
+        if (_threadId != 0) TrayNative.PostThreadMessage(_threadId, 0x0012 /* WM_QUIT */, 0, 0);
     }
 
     public void Dispose() => Stop();
@@ -106,23 +82,23 @@ public sealed class TrayService : IDisposable
     // ──── 托盘线程 ────
     private void TrayLoop()
     {
-        _threadId = GetCurrentThreadId();
+        _threadId = TrayNative.GetCurrentThreadId();
 
         _wndProcKeepAlive = WndProc;
-        var wc = new WndClassEx
+        var wc = new TrayNative.WndClassEx
         {
-            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<WndClassEx>(),
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<TrayNative.WndClassEx>(),
             lpfnWndProc = System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_wndProcKeepAlive),
-            hInstance = GetModuleHandleW(null),
+            hInstance = TrayNative.GetModuleHandleW(null),
             lpszClassName = "KeyNoteTrayWindow",
         };
-        if (RegisterClassExW(ref wc) == 0)
+        if (TrayNative.RegisterClassExW(ref wc) == 0)
         {
             CrashLog.Write("tray", message: "RegisterClassExW failed");
             return;
         }
 
-        _wnd = CreateWindowExW(0, "KeyNoteTrayWindow", "KeyNote", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
+        _wnd = TrayNative.CreateWindowExW(0, "KeyNoteTrayWindow", "KeyNote", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
         if (_wnd == IntPtr.Zero)
         {
             CrashLog.Write("tray", message: "CreateWindowExW failed");
@@ -131,11 +107,21 @@ public sealed class TrayService : IDisposable
 
         AddIcon();
 
-        while (GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
+        while (TrayNative.GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
             // 托盘回调已在 WndProc 处理,这里只维持消息泵
         }
     }
+
+    private TrayNative.NotifyIconDataW NotifyIconData() => new()
+    {
+        cbSize = Marshal.SizeOf<TrayNative.NotifyIconDataW>(),
+        hWnd = _wnd,
+        uID = 1,
+        szTip = "KeyNote 键盘记录",
+        szInfo = string.Empty,
+        szInfoTitle = string.Empty,
+    };
 
     private void AddIcon()
     {
@@ -146,16 +132,16 @@ public sealed class TrayService : IDisposable
             data.uCallbackMessage = WmTray;
             data.hIcon = LoadTrayIcon();
             data.szTip = "KeyNote 键盘记录";
-            var ok = Shell_NotifyIconW(0x00 /* NIM_ADD */, ref data);
+            var ok = TrayNative.Shell_NotifyIconW(0x00 /* NIM_ADD */, ref data);
             if (ok)
             {
-                if (_icon != IntPtr.Zero) DestroyIcon(_icon);
+                if (_icon != IntPtr.Zero) TrayNative.DestroyIcon(_icon);
                 _icon = data.hIcon;
                 _visible = true;
             }
             else
             {
-                if (data.hIcon != IntPtr.Zero) DestroyIcon(data.hIcon);
+                if (data.hIcon != IntPtr.Zero) TrayNative.DestroyIcon(data.hIcon);
                 _visible = false;
                 CrashLog.Write("tray.add", message:
                     $"NIM_ADD failed err={Marshal.GetLastWin32Error()} wnd=0x{_wnd.ToInt64():X}");
@@ -174,13 +160,13 @@ public sealed class TrayService : IDisposable
             try
             {
                 var data = NotifyIconData();
-                Shell_NotifyIconW(0x02 /* NIM_DELETE */, ref data);
+                TrayNative.Shell_NotifyIconW(0x02 /* NIM_DELETE */, ref data);
             }
             catch
             {
                 // 忽略
             }
-            DestroyIcon(_icon);
+            TrayNative.DestroyIcon(_icon);
             _icon = IntPtr.Zero;
         }
         _visible = false;
@@ -198,7 +184,7 @@ public sealed class TrayService : IDisposable
         catch (Exception ex)
         {
             CrashLog.Write("tray.icon", ex);
-            return LoadImageW(IntPtr.Zero, path, 1 /* IMAGE_ICON */, 0, 0, 0x10 /* LR_DEFAULTSIZE */);
+            return TrayNative.LoadImageW(IntPtr.Zero, path, 1 /* IMAGE_ICON */, 0, 0, 0x10 /* LR_DEFAULTSIZE */);
         }
     }
 
@@ -236,29 +222,29 @@ public sealed class TrayService : IDisposable
         }
         if (msg != WmRButtonUp) return;
 
-        var menu = BuildMenu();
+        var menu = TrayMenuBuilder.Build(IsPaused?.Invoke() ?? false);
         if (menu == IntPtr.Zero) return;
-        SetForegroundWindow(_wnd);
-        GetCursorPos(out var pos);
-        var cmd = TrackPopupMenuEx(menu, TpmReturnCmd | TpmRightButton, pos.X, pos.Y, _wnd, IntPtr.Zero);
-        PostMessageW(_wnd, 0, 0, 0);
-        DestroyMenu(menu);
+        TrayNative.SetForegroundWindow(_wnd);
+        TrayNative.GetCursorPos(out var pos);
+        var cmd = TrayNative.TrackPopupMenuEx(menu, TrayNative.TpmReturnCmd | TrayNative.TpmRightButton, pos.X, pos.Y, _wnd, IntPtr.Zero);
+        TrayNative.PostMessageW(_wnd, 0, 0, 0);
+        TrayNative.DestroyMenu(menu);
         DispatchCommand((int)cmd);
     }
 
     private void DispatchCommand(int id)
     {
         if (id == 0) return;
-        if (id == IdShow) Run(() => OnShowWindow?.Invoke());
-        else if (id == IdPause) Run(() => OnTogglePause?.Invoke());
-        else if (id == IdSettings) Run(() => OnOpenSettings?.Invoke());
-        else if (id == IdUpdateCheck) Run(() => OnCheckUpdate?.Invoke());
-        else if (id == IdBackup) Run(() => OnBackup?.Invoke());
-        else if (id == IdVacuum) Run(() => OnVacuum?.Invoke());
-        else if (id == IdQuit) Run(() => OnQuit?.Invoke());
-        else if (id >= IdRetentionBase && id < IdRetentionBase + RetentionOptions.Length)
+        if (id == TrayMenuBuilder.IdShow) Run(() => OnShowWindow?.Invoke());
+        else if (id == TrayMenuBuilder.IdPause) Run(() => OnTogglePause?.Invoke());
+        else if (id == TrayMenuBuilder.IdSettings) Run(() => OnOpenSettings?.Invoke());
+        else if (id == TrayMenuBuilder.IdUpdateCheck) Run(() => OnCheckUpdate?.Invoke());
+        else if (id == TrayMenuBuilder.IdBackup) Run(() => OnBackup?.Invoke());
+        else if (id == TrayMenuBuilder.IdVacuum) Run(() => OnVacuum?.Invoke());
+        else if (id == TrayMenuBuilder.IdQuit) Run(() => OnQuit?.Invoke());
+        else if (id >= TrayMenuBuilder.IdRetentionBase && id < TrayMenuBuilder.IdRetentionBase + TrayMenuBuilder.RetentionCount)
         {
-            var days = RetentionOptions[id - IdRetentionBase].Days;
+            var days = TrayMenuBuilder.RetentionDays(id - TrayMenuBuilder.IdRetentionBase);
             Run(() => OnSetRetention?.Invoke(days));
         }
     }
@@ -269,146 +255,10 @@ public sealed class TrayService : IDisposable
         else action();
     }
 
-    // ──── 菜单构建(每次右键实时取数) ────
-    private nint BuildMenu()
-    {
-        var menu = CreatePopupMenu();
-        if (menu == IntPtr.Zero) return IntPtr.Zero;
-
-        var paused = IsPaused?.Invoke() ?? false;
-        var health = KeyNoteDb.Health();
-        var sizeMb = health.SizeBytes / (1024.0 * 1024.0);
-        var lastBackup = health.LastBackupTs > 0
-            ? DateTimeOffset.FromUnixTimeSeconds(health.LastBackupTs).LocalDateTime.ToString("MM-dd HH:mm")
-            : "从未";
-
-        Append(menu, MfString | MfDefault, IdShow, "显示主窗口");
-        Append(menu, MfString, IdPause, paused ? "▶ 继续" : "⏸ 暂停");
-        Append(menu, MfString, IdSettings, "⚙ 设置...");
-        Append(menu, MfString, IdUpdateCheck, "🔄 检查更新");
-        Append(menu, MfSeparator, 0, null);
-
-        var realtime = CreatePopupMenu();
-        Append(realtime, MfString | MfGrayed, 0, $"总按键: {KeyNoteDb.CountTotal():N0}");
-        Append(realtime, MfString | MfGrayed, 0, $"今日: {KeyNoteDb.CountToday():N0}");
-        Append(realtime, MfString | MfGrayed, 0, $"连续打卡: {KeyNoteDb.StreakDays(365)} 天");
-        Append(realtime, MfString | MfGrayed, 0, $"近 1h 平均: {Rate1h():F1}/分钟");
-        Append(menu, MfPopup, (uint)realtime, "📈 实时统计");
-
-        var recent = CreatePopupMenu();
-        Append(recent, MfString | MfGrayed, 0, $"最近 5 分钟: {RecentBars()}");
-        Append(recent, MfString | MfGrayed, 0, paused ? "当前状态: ⏸ 暂停" : "当前状态: ● 记录中");
-        Append(menu, MfPopup, (uint)recent, "🕐 最近活动");
-
-        var data = CreatePopupMenu();
-        Append(data, MfString | MfGrayed, 0, $"总按键: {KeyNoteDb.CountTotal():N0}");
-        Append(data, MfString | MfGrayed, 0, $"原始记录: {health.RawCount:N0}");
-        Append(data, MfString | MfGrayed, 0, $"数据库: {sizeMb:F1} MB");
-        Append(data, MfString | MfGrayed, 0, $"上次备份: {lastBackup}");
-        Append(data, MfSeparator, 0, null);
-        Append(data, MfString, IdBackup, "💾 立即备份");
-        Append(data, MfString, IdVacuum, "🗜 立即 VACUUM");
-        Append(data, MfSeparator, 0, null);
-
-        var retention = CreatePopupMenu();
-        var current = KeyNoteDb.Health().RetentionDays;
-        for (var i = 0; i < RetentionOptions.Length; i++)
-        {
-            var (label, days) = RetentionOptions[i];
-            var flags = MfString | (days == current ? MfChecked : 0);
-            Append(retention, flags, (uint)(IdRetentionBase + i), label);
-        }
-        Append(data, MfPopup, (uint)retention, "保留 raw 数据");
-        Append(menu, MfPopup, (uint)data, "📊 数据管理");
-
-        Append(menu, MfSeparator, 0, null);
-        Append(menu, MfString, IdQuit, "退出");
-        return menu;
-    }
-
-    private static void Append(nint menu, uint flags, uint id, string? text)
-    {
-        AppendMenuW(menu, flags, id, text ?? string.Empty);
-    }
-
-    /// 近 1 小时平均按键/分钟:分母固定 60 分钟(按活跃分钟平均会在空闲时虚高)
-    private static double Rate1h()
-    {
-        return KeyNoteDb.CpmRecent(60);
-    }
-
-    private static string RecentBars()
-    {
-        var rows = KeyNoteDb.RateSeries(1);
-        var bucket = new long[5];
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var cutoff = now - 5 * 60 * 1000;
-        foreach (var (ts, c) in rows)
-        {
-            if (ts < cutoff) continue;
-            var idx = (int)Math.Min(4, Math.Max(0, (ts - cutoff) / 60000));
-            bucket[4 - idx] += c;
-        }
-        var peak = Math.Max(1, bucket.Max());
-        const string glyphs = " ▁▂▃▄▅▆▇█";
-        var sb = new StringBuilder();
-        foreach (var v in bucket)
-        {
-            sb.Append(glyphs[Math.Min(8, (int)(v / (double)peak * 8))]);
-        }
-        return sb.ToString();
-    }
-
-    // ──── Win32 ────
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct NotifyIconDataW
-    {
-        public int cbSize;
-        public nint hWnd;
-        public uint uID;
-        public uint uFlags;
-        public uint uCallbackMessage;
-        public nint hIcon;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string szTip;
-        public uint dwState;
-        public uint dwStateMask;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string szInfo;
-        public uint uTimeoutOrVersion;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string szInfoTitle;
-        public uint dwInfoFlags;
-        public Guid guidItem;
-        public nint hBalloonIcon;
-    }
-
-    private NotifyIconDataW NotifyIconData() => new()
-    {
-        cbSize = Marshal.SizeOf<NotifyIconDataW>(),
-        hWnd = _wnd,
-        uID = 1,
-        szTip = "KeyNote 键盘记录",
-        szInfo = string.Empty,
-        szInfoTitle = string.Empty,
-    };
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WndClassEx
-    {
-        public uint cbSize;
-        public uint style;
-        public nint lpfnWndProc;
-        public int cbClsExtra;
-        public int cbWndExtra;
-        public nint hInstance;
-        public nint hIcon;
-        public nint hCursor;
-        public nint hbrBackground;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszMenuName;
-        [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
-        public nint hIconSm;
-    }
-
+    // ──── 窗口过程 ────
     private delegate nint WndProcDelegate(nint hWnd, uint msg, nint wParam, nint lParam);
 
+    /// 委托需保持强引用,否则可能被 GC 回收导致钩子回调失效
     private static WndProcDelegate? _wndProcKeepAlive;
 
     private nint WndProc(nint hWnd, uint msg, nint wParam, nint lParam)
@@ -431,80 +281,6 @@ public sealed class TrayService : IDisposable
             AddIcon();
             return IntPtr.Zero;
         }
-        return DefWindowProcW(hWnd, msg, wParam, lParam);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Point
-    {
-        public int X;
-        public int Y;
-    }
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint RegisterWindowMessageW(string lpString);
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool Shell_NotifyIconW(uint dwMessage, ref NotifyIconDataW lpData);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern ushort RegisterClassExW(ref WndClassEx lpwcx);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern nint CreateWindowExW(uint exStyle, string lpClassName, string? lpWindowName,
-        uint dwStyle, int x, int y, int nWidth, int nHeight, nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
-
-    [DllImport("user32.dll")]
-    private static extern nint DefWindowProcW(nint hWnd, uint msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool PostMessageW(nint hWnd, uint msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool PostThreadMessage(uint idThread, uint msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern int GetMessageW(out Msg lpMsg, nint hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
-
-    [DllImport("user32.dll")]
-    private static extern nint CreatePopupMenu();
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool AppendMenuW(nint hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
-
-    [DllImport("user32.dll")]
-    private static extern uint TrackPopupMenuEx(nint hmenu, uint fuFlags, int x, int y, nint hWnd, nint lptpm);
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyMenu(nint hMenu);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(nint hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out Point lpPoint);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern nint LoadImageW(nint hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(nint hIcon);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern nint GetModuleHandleW(string? lpModuleName);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Msg
-    {
-        public nint hwnd;
-        public uint message;
-        public nint wParam;
-        public nint lParam;
-        public uint time;
-        public int pt_x;
-        public int pt_y;
+        return TrayNative.DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 }
