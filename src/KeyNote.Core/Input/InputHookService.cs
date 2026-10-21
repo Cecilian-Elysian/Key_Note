@@ -14,7 +14,11 @@ public sealed class InputHookService : IDisposable
     private const int WhMouseLl = 14;
     private const int WmKeyDown = 0x0100;
     private const int WmSysKeyDown = 0x0104;
-    private const int WmMouseDown = 0x0200;
+    private const int WmMouseMove = 0x0200;
+    private const int WmLButtonDown = 0x0201;
+    private const int WmRButtonDown = 0x0204;
+    private const int WmMButtonDown = 0x0207;
+    private const int WmXButtonDown = 0x020B;
 
     private Thread? _kbThread;
     private Thread? _msThread;
@@ -136,32 +140,25 @@ public sealed class InputHookService : IDisposable
 
     private nint MsProc(int nCode, nint wParam, nint lParam)
     {
-        if (nCode >= 0 && wParam == WmMouseDown)
+        if (nCode >= 0)
         {
             try
             {
-                var info = Marshal.PtrToStructure<MouseLlHookStruct>(lParam);
-                var button = info.mouseData switch
+                var msg = (int)(wParam & 0xFFFF);
+                if (msg == WmMouseMove)
                 {
-                    0x0001 => "left",
-                    0x0002 => "right",
-                    0x0000 => "middle",
-                    0x0003 => "x1",
-                    0x0004 => "x2",
-                    _ => (wParam & 0xFFFF) switch
-                    {
-                        0x0001 => "left",
-                        0x0002 => "right",
-                        0x0000 => "middle",
-                        0x0003 => "x1",
-                        0x0004 => "x2",
-                        _ => null,
-                    },
-                };
-                if (button is not null)
-                {
+                    // 移动只计活动(闲置检测),不记录点击
                     FireActivity();
-                    if (_mouseRecording) KeyNoteDb.EnqueueMouse(button);
+                }
+                else if (msg is WmLButtonDown or WmRButtonDown or WmMButtonDown or WmXButtonDown)
+                {
+                    var info = Marshal.PtrToStructure<MouseLlHookStruct>(lParam);
+                    var button = MapMouseButton(msg, info.mouseData);
+                    if (button is not null)
+                    {
+                        FireActivity();
+                        if (_mouseRecording) KeyNoteDb.EnqueueMouse(button);
+                    }
                 }
             }
             catch (Exception ex)
@@ -170,6 +167,21 @@ public sealed class InputHookService : IDisposable
             }
         }
         return CallNextHookEx(0, nCode, wParam, lParam);
+    }
+
+    /// 鼠标按钮映射:左/右/中由消息判定,侧键取 mouseData 高字(1=x1,2=x2)。
+    private static string? MapMouseButton(int msg, int mouseData)
+    {
+        if (msg == WmLButtonDown) return "left";
+        if (msg == WmRButtonDown) return "right";
+        if (msg == WmMButtonDown) return "middle";
+        var which = (uint)((mouseData >> 16) & 0xFFFF);
+        return which switch
+        {
+            1 => "x1",
+            2 => "x2",
+            _ => null,
+        };
     }
 
     // ──── 按键名与分类(与 pynput 语义一致) ────
@@ -264,6 +276,8 @@ public sealed class InputHookService : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     private struct MouseLlHookStruct
     {
+        public int ptX;
+        public int ptY;
         public int mouseData;
         public uint flags;
         public uint time;

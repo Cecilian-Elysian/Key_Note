@@ -59,7 +59,11 @@ public partial class App : Application
         {
             _idlePaused = false;
             Hooks.Resume();
-            if (WindowService.Current is MainWindow mw) mw.UpdateStatus(true);
+            // 活动事件来自钩子线程,UI 更新必须切回 UI 线程
+            if (WindowService.Current is MainWindow mw)
+            {
+                mw.DispatcherQueue.TryEnqueue(() => mw.UpdateStatus(true));
+            }
         }
     }
 
