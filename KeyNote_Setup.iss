@@ -2,15 +2,22 @@
 #ifndef AppVer
   #define AppVer "1.0.0"
 #endif
+; 打包源目录:build.ps1 传入干净 staging(build\setup_stage),直接编译时回退 dist
+#ifndef SrcDir
+  #define SrcDir "dist"
+#endif
 
 [Setup]
 AppName=KeyNote
 AppVersion={#AppVer}
 AppPublisher=KeyNote Project
+; 显式 AppId:升级链依赖它稳定(隐式取 AppName,改名即断链)
+AppId=KeyNote
 DefaultDirName={localappdata}\KeyNote
 ; auto:首装显示目录页,升级(同 AppId)隐藏并沿用旧目录
 DisableDirPage=auto
 UsePreviousAppDir=yes
+MinVersion=10.0.19041
 DefaultGroupName=KeyNote
 OutputDir=installer
 OutputBaseFilename=KeyNote_Setup
@@ -29,8 +36,8 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Name: "autostart"; Description: "开机自动启动 KeyNote"; GroupDescription: "启动选项："; Flags: checkedonce
 
 [Files]
-; .NET self-contained 发布产物(含 WindowsAppSDK 运行时)
-Source: "dist\*"; DestDir: "{app}"; Excludes: "KeyNote_Setup.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 发布产物(含 WindowsAppSDK 运行时);双保险:排除一切用户数据
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "KeyNote_Setup.exe,keynote.db,keynote.db-wal,keynote.db-shm,config.json,portable.flag,backups\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
