@@ -10,7 +10,7 @@ namespace KeyNote.App.Views;
 /// 设置页(Page 5):声明式字段表(分组 / 行式布局 / 常驻说明 / 搜索 / 固定底栏)。
 public sealed partial class SettingsPage : Page
 {
-    private enum FieldKind { Switch, Slider, Combo, Number, Path, Action }
+    private enum FieldKind { Switch, Slider, Combo, Number, Path, Action, Info }
 
     private sealed record FieldSpec(
         FieldKind Kind,
@@ -22,7 +22,8 @@ public sealed partial class SettingsPage : Page
         double Step = 0,
         string[]? Options = null,
         string? ActionKey = null,
-        bool Advanced = false);
+        bool Advanced = false,
+        string? Value = null);
 
     private static readonly (string Name, FieldSpec[] Fields)[] Groups =
     {
@@ -53,6 +54,11 @@ public sealed partial class SettingsPage : Page
             new FieldSpec(FieldKind.Path, "backup_dir", "备份目录", "备份 .db 文件的目标目录,空 = 使用数据目录下的 backups/。", Advanced: true),
             new FieldSpec(FieldKind.Action, "vacuum_now", "立即 VACUUM", "重建数据库回收空间。", ActionKey: "vacuum", Advanced: true),
         }),
+        ("关于", new[]
+        {
+            new FieldSpec(FieldKind.Info, "app_version", "当前版本", "程序与安装包版本信息。", Value: $"v{UpdateService.CurrentVersionText}"),
+            new FieldSpec(FieldKind.Action, "check_update", "检查更新", "查询 GitHub Releases 是否有新版本;发现新版后可打开下载页。", ActionKey: "update"),
+        }),
     };
 
     private static readonly int[] RetentionValues = [0, 7, 180, 365, 730];
@@ -62,11 +68,18 @@ public sealed partial class SettingsPage : Page
     private readonly List<(StackPanel Host, TextBlock Chevron)> _advSections = [];
     private readonly List<bool> _advOpen = [];
     private AppSettings _cfg = null!;
+    private Border? _updateRow;
+    private TextBlock? _updateText;
 
     public SettingsPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => Build();
+        Loaded += (_, _) =>
+        {
+            UpdateService.Completed += OnUpdateCompleted;
+            Build();
+        };
+        Unloaded += (_, _) => UpdateService.Completed -= OnUpdateCompleted;
         SearchBox.TextChanged += (_, _) => ApplyFilter();
     }
 
@@ -79,6 +92,8 @@ public sealed partial class SettingsPage : Page
         _rows.Clear();
         _advSections.Clear();
         _advOpen.Clear();
+        _updateRow = null;
+        _updateText = null;
 
         foreach (var (groupName, fields) in Groups)
         {
@@ -181,9 +196,23 @@ public sealed partial class SettingsPage : Page
                 ApplyAdvState(idx);
             }
 
+            // 关于组:追加「发现新版」提示行(默认隐藏,检查到新版才显示)
+            if (groupName == "关于")
+            {
+                stack.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Theme.UiColors.Divider),
+                    Margin = new Thickness(14, 0, 14, 0),
+                });
+                stack.Children.Add(BuildUpdateRow());
+            }
+
             card.Child = stack;
             GroupsHost.Children.Add(card);
         }
+
+        if (UpdateService.LastResult is { } last) ApplyUpdateResult(last);
     }
 
     /// 高级区展开/折叠状态 → chevron 方向 + host 可见性
@@ -248,6 +277,7 @@ public sealed partial class SettingsPage : Page
             FieldKind.Combo => BuildCombo(spec),
             FieldKind.Number => BuildNumber(spec),
             FieldKind.Path => BuildPath(spec),
+            FieldKind.Info => BuildInfo(spec),
             _ => BuildAction(spec),
         };
         Grid.SetColumn(control, 1);
@@ -389,7 +419,67 @@ public sealed partial class SettingsPage : Page
         return button;
     }
 
-    private void RunAction(string action)
+    private FrameworkElement BuildInfo(FieldSpec spec)
+    {
+        return new TextBlock
+        {
+            Text = spec.Value ?? string.Empty,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.UiColors.FgSecondary),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+    }
+
+    /// 「发现新版」提示行:提示文案 + 打开 Release 页按钮(默认隐藏)。
+    private Border BuildUpdateRow()
+    {
+        var text = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Theme.UiColors.Warning),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var open = new Button { Content = "打开下载页" };
+        open.Click += (_, _) =>
+        {
+            if (UpdateService.LastResult is not { } info) return;
+            StatusText.Text = UpdateService.OpenReleasePage(info.ReleaseUrl) ? "已打开下载页" : "打开浏览器失败";
+        };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        panel.Children.Add(text);
+        panel.Children.Add(open);
+
+        _updateText = text;
+        _updateRow = new Border
+        {
+            Padding = new Thickness(14, 10, 14, 10),
+            Visibility = Visibility.Collapsed,
+            Child = panel,
+        };
+        return _updateRow;
+    }
+
+    /// 检查结果落地:状态栏文案 + 新版提示行显隐。
+    private void ApplyUpdateResult(UpdateService.UpdateInfo info)
+    {
+        StatusText.Text = info.Message;
+        if (_updateText is not null && info.HasUpdate && info.Latest is not null)
+        {
+            _updateText.Text = $"发现新版本 v{info.Latest.ToString(3)},可在 Release 页下载安装包";
+        }
+        if (_updateRow is not null)
+        {
+            _updateRow.Visibility = info.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    /// 检查完成回调(后台线程触发 → 切回 UI 线程)。
+    private void OnUpdateCompleted(UpdateService.UpdateInfo info)
+    {
+        DispatcherQueue.TryEnqueue(() => ApplyUpdateResult(info));
+    }
+
+    private async void RunAction(string action)
     {
         try
         {
@@ -410,6 +500,13 @@ public sealed partial class SettingsPage : Page
                     var file = Path.Combine(dir, $"keynote-export-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
                     var rows = KeyNoteDb.ExportCsv(file, 30);
                     StatusText.Text = $"已导出 {rows:N0} 行 → {Path.GetFileName(file)}";
+                    break;
+                }
+                case "update":
+                {
+                    StatusText.Text = "正在检查更新…";
+                    var info = await UpdateService.CheckAsync();
+                    ApplyUpdateResult(info);
                     break;
                 }
             }

@@ -19,6 +19,7 @@ public sealed class AppSettings
         ["window_alpha"] = 1.0,
         ["remember_window_pos"] = true,
         ["_window_geometry"] = "",
+        ["_last_update_check"] = "",
         ["chart_auto_refresh"] = true,
         ["refresh_interval_sec"] = 5,
         ["heatmap_days"] = 365,

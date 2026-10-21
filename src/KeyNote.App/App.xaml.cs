@@ -5,6 +5,7 @@ using KeyNote.Core.Utils;
 using KeyNote.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System.Globalization;
 
 namespace KeyNote.App;
 
@@ -127,6 +128,7 @@ public partial class App : Application
             IsPaused = () => Hooks.IsPaused,
             OnShowWindow = () => window.ShowMainWindow(),
             OnOpenSettings = () => window.NavigateTo("settings"),
+            OnCheckUpdate = () => CheckUpdateManually(window),
             OnTogglePause = () =>
             {
                 if (Hooks.IsPaused) Hooks.Resume(); else Hooks.Pause();
@@ -144,6 +146,9 @@ public partial class App : Application
         };
         Tray.Start();
         if (Settings.HideTrayIcon) Tray.SetVisible(false);
+
+        // 更新检查:启动后每日静默一次
+        StartDailyUpdateCheck(window);
 
         // 状态胶囊
         window.UpdateStatus(!Hooks.IsPaused);
@@ -169,6 +174,71 @@ public partial class App : Application
             if (string.Equals(a, name, StringComparison.OrdinalIgnoreCase)) return true;
         }
         return false;
+    }
+
+    // ──── 更新检查 ────
+    /// 启动后每日静默检查一次(距上次检查不足 24h 则跳过);仅在发现新版时发托盘气泡。
+    private void StartDailyUpdateCheck(MainWindow window)
+    {
+        try
+        {
+            var last = Settings.GetString("_last_update_check");
+            if (DateTime.TryParse(last, CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastTime)
+                && (DateTime.Now - lastTime).TotalHours < 24) return;
+
+            var queue = window.DispatcherQueue;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var info = await UpdateService.CheckAsync();
+                    RecordUpdateCheckTime();
+                    if (!info.HasUpdate) return;
+                    queue.TryEnqueue(() => Tray.Notify($"发现新版本 v{info.Latest?.ToString(3)},可在设置页打开下载页"));
+                }
+                catch (Exception ex)
+                {
+                    CrashLog.Write("app.update", ex);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("app.update", ex);
+        }
+    }
+
+    /// 手动检查更新(托盘菜单):结果走托盘气泡。
+    private void CheckUpdateManually(MainWindow window)
+    {
+        try
+        {
+            var queue = window.DispatcherQueue;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var info = await UpdateService.CheckAsync();
+                    RecordUpdateCheckTime();
+                    queue.TryEnqueue(() => Tray.Notify(info.Message));
+                }
+                catch (Exception ex)
+                {
+                    CrashLog.Write("app.update", ex);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("app.update", ex);
+        }
+    }
+
+    /// 记录检查时间(供每日静默检查判重)。
+    private void RecordUpdateCheckTime()
+    {
+        Settings.Set("_last_update_check", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        Settings.Save();
     }
 
     /// 退出流程:排空 DB → 停托盘 → 退进程

@@ -30,6 +30,7 @@ public sealed class TrayService : IDisposable
     private const int IdShow = 1;
     private const int IdPause = 2;
     private const int IdSettings = 3;
+    private const int IdUpdateCheck = 4;
     private const int IdBackup = 10;
     private const int IdVacuum = 11;
     private const int IdRetentionBase = 20;
@@ -54,6 +55,7 @@ public sealed class TrayService : IDisposable
     public Func<bool>? IsPaused { get; set; }
     public Action? OnShowWindow { get; set; }
     public Action? OnOpenSettings { get; set; }
+    public Action? OnCheckUpdate { get; set; }
     public Action? OnTogglePause { get; set; }
     public Action? OnBackup { get; set; }
     public Action? OnVacuum { get; set; }
@@ -250,6 +252,7 @@ public sealed class TrayService : IDisposable
         if (id == IdShow) Run(() => OnShowWindow?.Invoke());
         else if (id == IdPause) Run(() => OnTogglePause?.Invoke());
         else if (id == IdSettings) Run(() => OnOpenSettings?.Invoke());
+        else if (id == IdUpdateCheck) Run(() => OnCheckUpdate?.Invoke());
         else if (id == IdBackup) Run(() => OnBackup?.Invoke());
         else if (id == IdVacuum) Run(() => OnVacuum?.Invoke());
         else if (id == IdQuit) Run(() => OnQuit?.Invoke());
@@ -282,6 +285,7 @@ public sealed class TrayService : IDisposable
         Append(menu, MfString | MfDefault, IdShow, "显示主窗口");
         Append(menu, MfString, IdPause, paused ? "▶ 继续" : "⏸ 暂停");
         Append(menu, MfString, IdSettings, "⚙ 设置...");
+        Append(menu, MfString, IdUpdateCheck, "🔄 检查更新");
         Append(menu, MfSeparator, 0, null);
 
         var realtime = CreatePopupMenu();
