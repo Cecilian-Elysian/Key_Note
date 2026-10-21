@@ -74,13 +74,14 @@
 | `src/KeyNote.App/Theme/UiColors.cs` | 暗色语义色板 |
 | `src/KeyNote.App/Helpers/PillFactory.cs` | 胶囊徽标工厂 |
 
-### 6. 系统托盘与自启
+### 6. 系统托盘与应用服务
 | 文件 | 职责 |
 |---|---|
 | `src/KeyNote.App/Services/TrayService.cs` | 纯 Win32 托盘(隐藏消息窗口 + Shell_NotifyIconW + TrackPopupMenuEx,动态菜单)|
 | `src/KeyNote.App/Services/AutostartService.cs` | 开机自启(HKCU Run 注册表) |
 | `src/KeyNote.App/Services/WindowBackdrop.cs` | Mica/Acrylic 能力探测与回退 |
 | `src/KeyNote.App/Services/UiPalette.cs` | 状态语义色板(accent/低电/中/正常/离线) |
+| `src/KeyNote.App/Services/UpdateService.cs` | 应用内更新检查(GitHub Releases API + 组件式版本比较 + 打开 Release 页) |
 
 ### 7. 构建与部署
 | 文件 | 职责 |
@@ -88,7 +89,7 @@
 | `build.ps1` | `dotnet publish`(Release/x64/self-contained)→ `dist/` + 用户数据备份恢复 |
 | `KeyNote_Setup.iss` | Inno Setup 安装器(打包 `dist/*`) |
 
-安装包编译:`& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" KeyNote_Setup.iss` → `installer/KeyNote_Setup.exe`(本机 Inno Setup 6 在 `%LOCALAPPDATA%\Programs`,不在 PATH)。
+安装包编译:`& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" KeyNote_Setup.iss` → `installer/KeyNote_Setup.exe`(本机 Inno Setup 6 在 `%LOCALAPPDATA%\Programs`,不在 PATH)。版本以 `KeyNote.App.csproj` 的 `<Version>` 为唯一真源,`build.ps1` 经 `/DAppVer=` 注入 `.iss`。
 
 ## 硬约束(违反即不收)
 - 技术栈只允许 `.NET 8 + Windows App SDK`;不引入第二套 UI 框架
@@ -99,7 +100,8 @@
 - WinUI3 非打包窗口不支持整窗透明:`window_alpha` 退化为**内容区**不透明度,不得宣称整窗透明
 
 ## 待办(TODO)
-- [ ] **应用内更新检查**(规划见 README「路线图」):`Services/UpdateService.cs` + GitHub Releases API 对接,设置页「检查更新」入口 + 托盘通知;不引入 Squirrel/Velopack 等更新框架
+- [x] ~~应用内更新检查~~:已实现(`Services/UpdateService.cs` + 设置页「关于」分组 + 托盘入口 + 启动每日静默检查)
+- [ ] **应用内静默更新**(下载 + 校验 + 拉起安装):当前走浏览器手动下载,后续评估
 
 ## 已知取舍(Python → C# 迁移)
 - `window_alpha`:WinUI3 不支持整窗 alpha,改为内容区不透明度

@@ -21,8 +21,13 @@
   - 聚合表永久保留,毫秒级查询;raw 按键记录默认 365 天自动清理
   - 自动周期备份(保留 7 份日备 + 4 份周备);手动备份 / VACUUM / CSV 导出
   - 数据库迁移 v1~v6,启动自动升级,与历史 Python 版库完全兼容
-- **系统托盘**(`TrayService`,纯 Win32):显示窗口 / 暂停监听 / 实时统计 / 数据管理 / 退出;图标按 accent 色 30% tint 渲染
+- **系统托盘**(`TrayService`,纯 Win32):显示窗口 / 暂停监听 / 实时统计 / 数据管理 / 检查更新 / 退出;图标按 accent 色 30% tint 渲染
   - Win11 可能默认把图标收进溢出区(`^`):右键任务栏 → 任务栏设置 → 其他系统托盘图标 → 打开 KeyNote,即可常显在任务栏
+- **应用内更新检查**(`UpdateService`)
+  - 设置页「关于」分组「检查更新」+ 托盘「🔄 检查更新」;启动后每日静默检查一次
+  - 比对 GitHub Releases 最新 tag 与当前程序集版本(组件式比较,同版本不误报)
+  - 发现新版 → 设置页提示 + 「打开下载页」(系统浏览器打开 Release 页,手动下载 `KeyNote_Setup.exe`)
+  - 不引入更新框架依赖(不用 Squirrel/Velopack)
 - **数据隐私**
   - 只记录按键名 + 时间戳,**不记录**窗口 / 应用名 / 剪贴板 / 按键上下文
   - 数据完全本地,默认存到 `%LOCALAPPDATA%\KeyNote\`
@@ -83,7 +88,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 key_note/
 ├── KeyNote.sln           # 解决方案
 ├── src/
-│   ├── KeyNote.App/      # WinUI3 壳:App / MainWindow / 5 页 / 7 控件 / 5 服务
+│   ├── KeyNote.App/      # WinUI3 壳:App / MainWindow / 5 页 / 7 控件 / 6 服务
 │   └── KeyNote.Core/     # 无 UI:AppSettings / KeyNoteDb / InputHookService / AppPaths / CrashLog
 ├── build.ps1             # 一键构建:publish → 瘦身 → 安装包 → dist/
 ├── KeyNote_Setup.iss     # Inno Setup 安装脚本
@@ -107,11 +112,19 @@ key_note/
 
 ## 路线图
 
-- [ ] **应用内更新检查**:对接 GitHub Releases(`Cecilian-Elysian/Key_Note`)
-  - 设置页(或关于区)提供「检查更新」:请求 Releases API,比对最新 tag 与当前程序集版本(`Assembly.GetExecutingAssembly().GetName().Version`)
-  - 有新版 → 托盘气泡通知 + 设置页提示,附 Release 页链接(用系统浏览器打开)
-  - 下载方式先走浏览器手动下载 `KeyNote_Setup.exe`;应用内静默更新(下载 + 校验 + 拉起安装)后续评估
-  - 约束:保持单机工具轻量,不引入更新框架依赖(不用 Squirrel/Velopack),实现放 `Services/UpdateService.cs`,设置页/托盘各加一个入口
+- [x] **应用内更新检查**:对接 GitHub Releases(`Cecilian-Elysian/Key_Note`)
+  - 设置页「关于」分组「检查更新」+ 托盘「🔄 检查更新」,启动后每日静默检查一次
+  - 比对最新 tag 与当前程序集版本;发现新版 → 托盘气泡 + 设置页提示 + 「打开下载页」
+  - 实现见 `Services/UpdateService.cs`;不引入更新框架依赖(不用 Squirrel/Velopack)
+- [ ] **应用内静默更新**:下载 + 校验 + 拉起安装(当前版本先走浏览器手动下载,后续评估)
+
+### 发布流程
+
+1. 改 `src/KeyNote.App/KeyNote.App.csproj` 的 `<Version>`(安装包版本由 `build.ps1` 派生,不必手改 `.iss`)
+2. `powershell -ExecutionPolicy Bypass -File build.ps1` → 产出 `dist\KeyNote_Setup.exe`
+3. `git tag v1.0.1 && git push --tags`
+4. 在 GitHub 仓库创建 Release:tag 选 `v1.0.1`,上传 `dist\KeyNote_Setup.exe` 作为资产
+5. 应用内「检查更新」即可发现新版本(资产名需为 `KeyNote_Setup.exe`;无该资产时仍可打开 Release 页手动下载)
 
 ## 参与开发
 
