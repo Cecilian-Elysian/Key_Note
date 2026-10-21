@@ -33,10 +33,10 @@ public sealed partial class BarChartControl : UserControl
 
         if (_data.Count == 0)
         {
-            EmptyState.Visibility = Visibility.Visible;
+            EmptyState.Show("暂无记录", "开始记录后,这里会显示常用 Top 10");
             return;
         }
-        EmptyState.Visibility = Visibility.Collapsed;
+        EmptyState.Hide();
 
         var labelW = 52;
         var valueW = 52;

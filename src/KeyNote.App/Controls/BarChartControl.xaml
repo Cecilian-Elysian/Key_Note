@@ -1,15 +1,11 @@
 <UserControl
     x:Class="KeyNote.App.Controls.BarChartControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KeyNote.App.Controls">
     <Grid>
         <Canvas x:Name="Surface" />
-        <Grid x:Name="EmptyState" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel Spacing="6">
-                <FontIcon Glyph="&#xE787;" FontSize="26" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="还没有记录" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="开始打字后,这里会按次数排出 Top 10" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
-            </StackPanel>
-        </Grid>
+        <controls:EmptyStateView x:Name="EmptyState" Visibility="Collapsed"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Grid>
 </UserControl>

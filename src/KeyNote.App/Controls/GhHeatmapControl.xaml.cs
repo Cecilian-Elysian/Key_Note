@@ -1,4 +1,4 @@
-﻿using KeyNote.App.Theme;
+using KeyNote.App.Theme;
 using KeyNote.Core.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -182,6 +182,13 @@ public sealed partial class GhHeatmapControl : UserControl
         cv.Children.Clear();
         _hoverRect = null;
 
+        if (_dailyValues.All(v => v <= 0))
+        {
+            EmptyState.Show("暂无记录", "开始记录后,这里会显示每日按键分布");
+            return;
+        }
+        EmptyState.Hide();
+
         var w = cv.ActualWidth > 0 ? cv.ActualWidth : 0;
         var h = cv.ActualHeight > 0 ? cv.ActualHeight : 0;
         var layout = ComputeLayout(w, h);
@@ -345,11 +352,8 @@ public sealed partial class GhHeatmapControl : UserControl
             var cellDate = _gridStart.AddDays(_hovered.col * 7 + row);
             var delta = (cellDate - _startDt).Days;
             var value = delta >= 0 && delta < _days ? _dailyValues[delta] : 0;
-            TipText.Text = $"{cellDate:yyyy-MM-dd} · {value:N0} 次";
-            Tip.Visibility = Visibility.Visible;
-            Tip.Measure(new Windows.Foundation.Size(400, 40));
-            Canvas.SetLeft(Tip, Math.Min(p.X + 12, Math.Max(0, w - Tip.DesiredSize.Width)));
-            Canvas.SetTop(Tip, Math.Max(0, p.Y - 34));
+            Tip.Text = $"{cellDate:yyyy-MM-dd} · {value:N0} 次";
+            Tip.ShowAt(cv, p.X, p.Y);
             return;
         }
         _hovered = (-1, -1, -1);
@@ -376,7 +380,7 @@ public sealed partial class GhHeatmapControl : UserControl
 
     private void HideTip()
     {
-        Tip.Visibility = Visibility.Collapsed;
+        Tip.Hide();
         if (_hoverRect is not null) _hoverRect.Visibility = Visibility.Collapsed;
         _hovered = (-1, -1, -1);
     }

@@ -21,7 +21,7 @@ public sealed partial class HourlyGridControl : UserControl
         InitializeComponent();
         SizeChanged += (_, _) => Render();
         PointerMoved += OnPointerMoved;
-        PointerExited += (_, _) => Tip.Visibility = Visibility.Collapsed;
+        PointerExited += (_, _) => Tip.Hide();
     }
 
     public void SetGrid(int[,] grid)
@@ -55,6 +55,13 @@ public sealed partial class HourlyGridControl : UserControl
         var w = cv.ActualWidth;
         var h = cv.ActualHeight;
         if (w < 60 || h < 40) return;
+
+        if (_peak <= 0)
+        {
+            EmptyState.Show("暂无记录", "开始记录后,这里会显示 7×24 活跃度");
+            return;
+        }
+        EmptyState.Hide();
 
         const double marginX = 24;
         const double gap = 1;
@@ -165,20 +172,17 @@ public sealed partial class HourlyGridControl : UserControl
         var row = (int)((p.Y - _oy) / (_cell + _gap));
         if (col < 0 || col > 23 || row < 0 || row > 6)
         {
-            Tip.Visibility = Visibility.Collapsed;
+            Tip.Hide();
             return;
         }
         var cellX = _ox + col * (_cell + _gap);
         var cellY = _oy + row * (_cell + _gap);
         if (p.X > cellX + _cell || p.Y > cellY + _cell)
         {
-            Tip.Visibility = Visibility.Collapsed;
+            Tip.Hide();
             return;
         }
-        TipText.Text = $"周{CnWeekdays[row]} {col}:00 · {_grid[row, col]:N0} 次键";
-        Tip.Visibility = Visibility.Visible;
-        Tip.Measure(new Windows.Foundation.Size(400, 40));
-        Canvas.SetLeft(Tip, Math.Min(p.X + 12, Math.Max(0, cv.ActualWidth - Tip.DesiredSize.Width)));
-        Canvas.SetTop(Tip, Math.Max(0, p.Y - 34));
+        Tip.Text = $"周{CnWeekdays[row]} {col}:00 · {_grid[row, col]:N0} 次键";
+        Tip.ShowAt(cv, p.X, p.Y);
     }
 }

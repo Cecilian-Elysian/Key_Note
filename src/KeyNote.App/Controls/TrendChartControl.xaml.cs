@@ -77,10 +77,10 @@ public sealed partial class TrendChartControl : UserControl
 
         if (_points.Count == 0)
         {
-            EmptyState.Visibility = Visibility.Visible;
+            EmptyState.Show("暂无记录", "开始记录后,这里会显示按键趋势");
             return;
         }
-        EmptyState.Visibility = Visibility.Collapsed;
+        EmptyState.Hide();
 
         var maxV = _points.Max(p => p.Value);
         var top = maxV <= 0 ? 1 : maxV * 1.15;

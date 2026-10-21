@@ -1,13 +1,12 @@
 <UserControl
     x:Class="KeyNote.App.Controls.GhHeatmapControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KeyNote.App.Controls">
     <Grid>
         <Canvas x:Name="Surface" />
-        <Border x:Name="Tip" Visibility="Collapsed" CornerRadius="4" Padding="8,4"
-                Background="#F21C1C1C" BorderBrush="#FF3D3D3D" BorderThickness="1"
-                HorizontalAlignment="Left" VerticalAlignment="Top">
-            <TextBlock x:Name="TipText" FontSize="11" Foreground="#FFFFFFFF" />
-        </Border>
+        <controls:ChartTip x:Name="Tip" />
+        <controls:EmptyStateView x:Name="EmptyState" Visibility="Collapsed"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Grid>
 </UserControl>

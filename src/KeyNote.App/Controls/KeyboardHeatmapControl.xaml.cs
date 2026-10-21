@@ -30,7 +30,7 @@ public sealed partial class KeyboardHeatmapControl : UserControl
         InitializeComponent();
         SizeChanged += (_, _) => Render();
         PointerMoved += OnPointerMoved;
-        PointerExited += (_, _) => Tip.Visibility = Visibility.Collapsed;
+        PointerExited += (_, _) => Tip.Hide();
     }
 
     public void SetCounts(Dictionary<string, int> counts)
@@ -67,6 +67,13 @@ public sealed partial class KeyboardHeatmapControl : UserControl
         _rects.Clear();
         var w = cv.ActualWidth;
         if (w < 50) return;
+
+        if (_max <= 0)
+        {
+            EmptyState.Show("暂无记录", "开始记录后,这里会显示键盘按键分布");
+            return;
+        }
+        EmptyState.Hide();
 
         const double gap = 5;
         var maxCols = KeyRows.Max(r => r.Length);
@@ -171,18 +178,15 @@ public sealed partial class KeyboardHeatmapControl : UserControl
             if (_max > 0 && count > 0)
             {
                 var pct = Math.Round(count / (double)_max * 100);
-                TipText.Text = $"{label} · {count:N0} 次 · 占峰值 {pct}%";
+                Tip.Text = $"{label} · {count:N0} 次 · 占峰值 {pct}%";
             }
             else
             {
-                TipText.Text = $"{label} · 0 次";
+                Tip.Text = $"{label} · 0 次";
             }
-            Tip.Visibility = Visibility.Visible;
-            Tip.Measure(new Windows.Foundation.Size(400, 40));
-            Canvas.SetLeft(Tip, Math.Min(p.X + 12, Math.Max(0, cv.ActualWidth - Tip.DesiredSize.Width)));
-            Canvas.SetTop(Tip, Math.Max(0, p.Y - 34));
+            Tip.ShowAt(cv, p.X, p.Y);
             return;
         }
-        Tip.Visibility = Visibility.Collapsed;
+        Tip.Hide();
     }
 }

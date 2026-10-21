@@ -73,6 +73,11 @@
                 <Setter Property="Padding" Value="6,2" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
+
+            <!-- 图表提示气泡配色(原为 3 个控件 XAML 里的硬编码色) -->
+            <SolidColorBrush x:Key="ChartTipBackgroundBrush" Color="#F21C1C1C" />
+            <SolidColorBrush x:Key="ChartTipBorderBrush" Color="#FF3D3D3D" />
+            <SolidColorBrush x:Key="ChartTipForegroundBrush" Color="#FFFFFFFF" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
