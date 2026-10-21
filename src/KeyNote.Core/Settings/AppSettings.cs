@@ -15,12 +15,10 @@ public sealed class AppSettings
         ["start_minimized"] = false,
         ["listener_enabled"] = true,
         ["idle_pause_min"] = 0,
-        ["font_family"] = "Microsoft YaHei UI",
         ["window_alpha"] = 1.0,
         ["remember_window_pos"] = true,
         ["_window_geometry"] = "",
         ["_last_update_check"] = "",
-        ["chart_auto_refresh"] = true,
         ["refresh_interval_sec"] = 5,
         ["heatmap_days"] = 365,
         ["db_retention_days"] = 365,
@@ -29,10 +27,8 @@ public sealed class AppSettings
         ["backup_keep_weekly"] = 4,
         ["db_flush_batch_size"] = 200,
         ["db_flush_interval_sec"] = 1.0,
-        ["log_to_file"] = false,
         ["silent_start"] = false,
         ["hide_tray_icon"] = false,
-        ["window_topmost"] = false,
         ["data_dir"] = "",
         ["mouse_listener_enabled"] = true,
         ["backup_dir"] = "",
@@ -165,7 +161,6 @@ public sealed class AppSettings
     public int RetentionDays => GetInt("db_retention_days", 365);
     public int HeatmapDays => GetInt("heatmap_days", 365);
     public int RefreshIntervalSec => GetInt("refresh_interval_sec", 5);
-    public bool ChartAutoRefresh => GetBool("chart_auto_refresh", true);
     public bool CloseToTray => GetBool("close_to_tray", true);
     public bool SilentStart => GetBool("silent_start", false);
     public bool StartMinimized => GetBool("start_minimized", false);

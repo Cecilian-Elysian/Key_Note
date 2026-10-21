@@ -92,7 +92,7 @@ public sealed partial class HourlyGridControl : UserControl
             var lbl = new TextBlock
             {
                 Text = CnWeekdays[dow],
-                FontSize = 9,
+                FontSize = 11,
                 Foreground = UiColors.Brush(UiColors.FgMuted),
             };
             Canvas.SetLeft(lbl, 4);
@@ -123,7 +123,7 @@ public sealed partial class HourlyGridControl : UserControl
             var lbl = new TextBlock
             {
                 Text = hr.ToString(),
-                FontSize = 8,
+                FontSize = 11,
                 Foreground = UiColors.Brush(UiColors.FgMuted),
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
@@ -139,7 +139,7 @@ public sealed partial class HourlyGridControl : UserControl
         var textW = 11;
         var legendW = textW + 8 + 5 * box + 4 * bgap + 8 + textW;
         var lx = _ox + gridW - legendW;
-        var less = new TextBlock { Text = "少", FontSize = 9, Foreground = UiColors.Brush(UiColors.FgMuted) };
+        var less = new TextBlock { Text = "少", FontSize = 11, Foreground = UiColors.Brush(UiColors.FgMuted) };
         Canvas.SetLeft(less, lx);
         Canvas.SetTop(less, legendY + box / 2 - 7);
         cv.Children.Add(less);
@@ -157,7 +157,7 @@ public sealed partial class HourlyGridControl : UserControl
             cv.Children.Add(rect);
             lx += box + bgap;
         }
-        var more = new TextBlock { Text = "多", FontSize = 9, Foreground = UiColors.Brush(UiColors.FgMuted) };
+        var more = new TextBlock { Text = "多", FontSize = 11, Foreground = UiColors.Brush(UiColors.FgMuted) };
         Canvas.SetLeft(more, lx + 5);
         Canvas.SetTop(more, legendY + box / 2 - 7);
         cv.Children.Add(more);

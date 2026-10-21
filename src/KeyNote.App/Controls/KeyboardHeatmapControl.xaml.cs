@@ -113,7 +113,7 @@ public sealed partial class KeyboardHeatmapControl : UserControl
         var textW = 11;
         var legendW = textW + 8 + colors.Count * box + (colors.Count - 1) * bgap + 8 + textW;
         var lx = sx1 - legendW;
-        var less = new TextBlock { Text = "少", FontSize = 9, Foreground = UiColors.Brush(UiColors.FgMuted) };
+        var less = new TextBlock { Text = "少", FontSize = 11, Foreground = UiColors.Brush(UiColors.FgMuted) };
         Canvas.SetLeft(less, lx);
         Canvas.SetTop(less, legendY + box / 2 - 7);
         cv.Children.Add(less);
@@ -126,7 +126,7 @@ public sealed partial class KeyboardHeatmapControl : UserControl
             cv.Children.Add(rect);
             lx += box + bgap;
         }
-        var more = new TextBlock { Text = "多", FontSize = 9, Foreground = UiColors.Brush(UiColors.FgMuted) };
+        var more = new TextBlock { Text = "多", FontSize = 11, Foreground = UiColors.Brush(UiColors.FgMuted) };
         Canvas.SetLeft(more, lx + 5);
         Canvas.SetTop(more, legendY + box / 2 - 7);
         cv.Children.Add(more);
@@ -138,7 +138,7 @@ public sealed partial class KeyboardHeatmapControl : UserControl
     /// 布局计算出的建议高度(由页面决定实际高度)
     public double DesiredHeight { get; private set; }
 
-    private void AddKey(Canvas cv, string key, double x0, double y0, double x1, double y1, string label, double fontSize = 10)
+    private void AddKey(Canvas cv, string key, double x0, double y0, double x1, double y1, string label, double fontSize = 11)
     {
         var rect = new Rectangle
         {

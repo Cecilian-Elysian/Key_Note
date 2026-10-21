@@ -10,8 +10,6 @@ internal static class WindowBackdrop
     private static readonly bool _mica = Query(() => MicaController.IsSupported());
     private static readonly bool _acrylic = Query(() => DesktopAcrylicController.IsSupported());
 
-    public static bool HasMaterial => _mica || _acrylic;
-
     /// 返回可挂到 Window.SystemBackdrop 的材质;null 表示回退纯色。
     public static SystemBackdrop? Create()
     {

@@ -93,7 +93,7 @@ public sealed partial class BarChartControl : UserControl
             var val = new TextBlock
             {
                 Text = count.ToString("N0"),
-                FontSize = 10,
+                FontSize = 11,
                 Foreground = UiColors.Brush(UiColors.FgSecondary),
             };
             Canvas.SetLeft(val, plotX + bw + 6);

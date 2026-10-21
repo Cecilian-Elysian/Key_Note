@@ -105,7 +105,7 @@ public sealed partial class TrendChartControl : UserControl
             var lbl = new TextBlock
             {
                 Text = ((int)(top * (1 - i / 3.0))).ToString("N0"),
-                FontSize = 10,
+                FontSize = 11,
                 Foreground = UiColors.Brush(UiColors.FgMuted),
             };
             Canvas.SetLeft(lbl, 0);

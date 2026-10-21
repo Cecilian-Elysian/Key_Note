@@ -75,9 +75,7 @@ public sealed partial class SettingsPage : Page
             var title = new TextBlock
             {
                 Text = groupName,
-                FontSize = 15,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Theme.UiColors.FgPrimary),
+                Style = (Style)Application.Current.Resources["SettingsGroupTitleStyle"],
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(title, 1);
@@ -122,13 +120,18 @@ public sealed partial class SettingsPage : Page
                     Foreground = new SolidColorBrush(Theme.UiColors.FgMuted),
                     VerticalAlignment = VerticalAlignment.Center,
                 });
-                var advHeader = new Grid
+                // 用 Button 而非 Grid+PointerPressed:键盘可达(读屏与 Tab 都能用)
+                var advHeader = new Button
                 {
-                    Padding = new Thickness(14, 10, 14, 10),
+                    Content = advTitle,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
                     Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    Padding = new Thickness(14, 10, 14, 10),
+                    BorderThickness = new Thickness(0),
                 };
-                advHeader.Children.Add(advTitle);
-                advHeader.PointerPressed += (_, _) =>
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(advHeader, "高级设置(展开/折叠)");
+                advHeader.Click += (_, _) =>
                 {
                     var idx = _advSections.FindIndex(s => s.Host == advHost);
                     _advOpen[idx] = !_advOpen[idx];
@@ -203,14 +206,12 @@ public sealed partial class SettingsPage : Page
         left.Children.Add(new TextBlock
         {
             Text = spec.Title,
-            FontSize = 14,
-            Foreground = new SolidColorBrush(Theme.UiColors.FgPrimary),
+            Style = (Style)Application.Current.Resources["SettingsRowTitleStyle"],
         });
         var desc = new TextBlock
         {
             Text = spec.Desc,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.UiColors.FgMuted),
+            Style = (Style)Application.Current.Resources["SettingsDescStyle"],
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 460,
         };

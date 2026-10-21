@@ -28,7 +28,6 @@ public static partial class KeyNoteDb
 
     public static string DbPath { get; private set; } = "";
     public static string BackupDir { get; private set; } = "";
-    public static string LogPath { get; private set; } = "";
 
     private readonly record struct WriteItem(double Ts, char Kind, string Payload, string KeyType);
 
@@ -43,7 +42,6 @@ public static partial class KeyNoteDb
             DbPath = Path.Combine(dataDir, "keynote.db");
             BackupDir = cfg.GetString("backup_dir");
             if (string.IsNullOrEmpty(BackupDir)) BackupDir = Path.Combine(dataDir, "backups");
-            LogPath = Path.Combine(dataDir, "keynote.log");
 
             var batchSize = Math.Max(1, cfg.GetInt("db_flush_batch_size", 200));
             var interval = Math.Max(0.05, cfg.GetDouble("db_flush_interval_sec", 1.0));
@@ -314,25 +312,6 @@ public static partial class KeyNoteDb
             cursor = cursor.AddDays(-1);
         }
         return streak;
-    }
-
-    public static int DailyAverage(int days = 7)
-    {
-        if (days <= 0) return 0;
-        var byDay = new Dictionary<DateTime, long>();
-        foreach (var (ts, c) in DailyCounts(days))
-        {
-            var d = DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime.Date;
-            byDay[d] = byDay.GetValueOrDefault(d) + c;
-        }
-        var end = DateTime.Today;
-        var start = end.AddDays(-(days - 1));
-        long total = 0;
-        for (var cursor = start; cursor <= end; cursor = cursor.AddDays(1))
-        {
-            total += byDay.GetValueOrDefault(cursor);
-        }
-        return (int)(total / days);
     }
 
     public static int DailyActiveDays(int days = 30)

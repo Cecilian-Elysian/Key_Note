@@ -60,6 +60,29 @@
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
             </Style>
 
+            <!-- 图表轴标签:11 号(原为 8/9/10,小字不可读) -->
+            <Style x:Key="ChartAxisLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Style>
+
+            <!-- 设置面板:分组标题 / 行标题 / 说明 -->
+            <Style x:Key="SettingsGroupTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="SettingsRowTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="SettingsDescStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Style>
+
             <!-- ──── 导航字形(与 Python 版一致:统计/后台/热力图/常用按键/设置) ──── -->
             <x:String x:Key="StatsGlyph">&#xE9D2;</x:String>
             <x:String x:Key="KeyboardGlyph">&#xE765;</x:String>

@@ -8,19 +8,6 @@ public static class AutostartService
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "KeyNote";
 
-    public static bool IsEnabled()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
-            return key?.GetValue(ValueName) is not null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     public static void SetEnabled(bool enabled)
     {
         try

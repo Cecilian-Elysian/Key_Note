@@ -16,6 +16,7 @@ public sealed partial class SettingsPage
             OnContent = "",
             OffContent = "",
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(toggle, spec.Title);
         toggle.Toggled += (_, _) => _editors[spec.Key] = toggle.IsOn;
         _editors[spec.Key] = toggle.IsOn;
         return toggle;
@@ -41,6 +42,7 @@ public sealed partial class SettingsPage
             Value = _cfg.GetDouble(spec.Key, spec.Hi),
             Width = 180,
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(slider, spec.Title);
         slider.ValueChanged += (_, _) =>
         {
             value.Text = slider.Value.ToString("0.00");
@@ -62,6 +64,7 @@ public sealed partial class SettingsPage
         var current = _cfg.GetInt(spec.Key, 365);
         var idx = Array.IndexOf(RetentionValues, current);
         combo.SelectedIndex = idx >= 0 ? idx : 3;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(combo, spec.Title);
         combo.SelectionChanged += (_, _) =>
         {
             if (combo.SelectedIndex >= 0 && combo.SelectedIndex < RetentionValues.Length)
@@ -84,6 +87,7 @@ public sealed partial class SettingsPage
             Value = _cfg.GetInt(spec.Key, (int)spec.Lo),
             Width = 110,
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, spec.Title);
         box.ValueChanged += (_, _) =>
         {
             if (!double.IsNaN(box.Value)) _editors[spec.Key] = (int)box.Value;
@@ -101,6 +105,7 @@ public sealed partial class SettingsPage
             PlaceholderText = "默认:数据目录/backups",
             Width = 220,
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(text, spec.Title);
         text.TextChanged += (_, _) => _editors[spec.Key] = text.Text;
         var browse = new Button { Content = "浏览…" };
         browse.Click += (_, _) =>
@@ -134,6 +139,7 @@ public sealed partial class SettingsPage
     private FrameworkElement BuildAction(FieldSpec spec)
     {
         var button = new Button { Content = spec.Title };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, spec.Title);
         button.Click += (_, _) => RunAction(spec.ActionKey ?? string.Empty);
         return button;
     }

@@ -25,12 +25,6 @@ public static class AppPaths
         return dir;
     }
 
-    public static string BackupDir(Core.Settings.AppSettings cfg)
-    {
-        var custom = cfg.GetString("backup_dir");
-        if (!string.IsNullOrEmpty(custom)) return custom;
-        return Path.Combine(DataDir(), "backups");
-    }
-
+    /// 崩溃日志路径(固定在默认数据目录,不跟随 data_dir)
     public static string CrashLogPath => Path.Combine(DataDir(), "keynote.crash.log");
 }
