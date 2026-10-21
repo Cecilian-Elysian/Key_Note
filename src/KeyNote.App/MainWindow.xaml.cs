@@ -267,8 +267,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var path = KeyNoteDb.Backup(App.Instance.Settings);
-            App.Instance.Tray.Notify(path is null ? "备份失败" : $"已备份: {System.IO.Path.GetFileName(path)}");
+            App.Instance.Tray.Notify(MaintenanceService.Backup(App.Instance.Settings));
         }
         catch (Exception ex)
         {
@@ -280,8 +279,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var ok = KeyNoteDb.Vacuum();
-            App.Instance.Tray.Notify(ok ? "VACUUM 完成" : "VACUUM 失败");
+            App.Instance.Tray.Notify(MaintenanceService.Vacuum());
         }
         catch (Exception ex)
         {

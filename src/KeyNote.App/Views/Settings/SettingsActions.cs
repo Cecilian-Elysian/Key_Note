@@ -1,5 +1,4 @@
 using KeyNote.App.Services;
-using KeyNote.Core.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -64,22 +63,14 @@ public sealed partial class SettingsPage
             switch (action)
             {
                 case "backup":
-                {
-                    var path = KeyNoteDb.Backup(_cfg);
-                    StatusText.Text = path is null ? "备份失败" : $"已备份:{Path.GetFileName(path)}";
+                    StatusText.Text = MaintenanceService.Backup(_cfg);
                     break;
-                }
                 case "vacuum":
-                    StatusText.Text = KeyNoteDb.Vacuum() ? "VACUUM 完成" : "VACUUM 失败";
+                    StatusText.Text = MaintenanceService.Vacuum();
                     break;
                 case "csv":
-                {
-                    var dir = Core.Utils.AppPaths.DataDir();
-                    var file = Path.Combine(dir, $"keynote-export-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
-                    var rows = KeyNoteDb.ExportCsv(file, 30);
-                    StatusText.Text = $"已导出 {rows:N0} 行 → {Path.GetFileName(file)}";
+                    StatusText.Text = MaintenanceService.ExportCsv(30);
                     break;
-                }
                 case "update":
                 {
                     StatusText.Text = "正在检查更新…";
