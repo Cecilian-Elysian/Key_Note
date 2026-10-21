@@ -13,7 +13,10 @@ public sealed class InputHookService : IDisposable
     private const int WhKeyboardLl = 13;
     private const int WhMouseLl = 14;
     private const int WmKeyDown = 0x0100;
+    private const int WmKeyUp = 0x0101;
     private const int WmSysKeyDown = 0x0104;
+    private const int WmSysKeyUp = 0x0105;
+    private const uint LlkhfExtended = 0x01;
     private const int WmMouseMove = 0x0200;
     private const int WmLButtonDown = 0x0201;
     private const int WmRButtonDown = 0x0204;
@@ -31,6 +34,15 @@ public sealed class InputHookService : IDisposable
     private volatile bool _mouseRecording = true;
     private string _lastKeyName = "";
     private long _lastKeyStamp; // Stopwatch ticks
+
+    // 修饰键状态(仅钩子线程访问):用于还原大小写 / CapsLock / AltGr
+    private bool _lShift;
+    private bool _rShift;
+    private bool _lCtrl;
+    private bool _rCtrl;
+    private bool _lAlt;
+    private bool _rAlt;
+    private bool _capsLock;
 
     /// 任意键盘/鼠标活动(闲置检测用)。
     public event Action? ActivityFired;
@@ -80,12 +92,18 @@ public sealed class InputHookService : IDisposable
 
     private nint KbProc(int nCode, nint wParam, nint lParam)
     {
-        if (nCode >= 0 && (wParam == WmKeyDown || wParam == WmSysKeyDown))
+        if (nCode >= 0)
         {
             try
             {
-                var info = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
-                HandleKey(info.vkCode, info.scanCode);
+                var msg = (int)(wParam & 0xFFFF);
+                var isDown = msg is WmKeyDown or WmSysKeyDown;
+                var isUp = msg is WmKeyUp or WmSysKeyUp;
+                if (isDown || isUp)
+                {
+                    var info = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
+                    HandleKey(info.vkCode, info.scanCode, info.flags, isDown);
+                }
             }
             catch (Exception ex)
             {
@@ -95,15 +113,18 @@ public sealed class InputHookService : IDisposable
         return CallNextHookEx(0, nCode, wParam, lParam);
     }
 
-    private void HandleKey(uint vk, uint scan)
+    private void HandleKey(uint vk, uint scan, uint flags, bool isDown)
     {
+        UpdateModifierState(vk, isDown);
+
         if (IsModifier(vk))
         {
             FireActivity();
             return;
         }
+        if (!isDown) return;
 
-        var name = KeyName(vk, scan);
+        var name = KeyName(vk, scan, flags);
         if (string.IsNullOrEmpty(name)) return;
 
         var stamp = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -231,30 +252,97 @@ public sealed class InputHookService : IDisposable
         return "function";
     }
 
-    private static string KeyName(uint vk, uint scan)
+    private string KeyName(uint vk, uint scan, uint flags)
     {
         if (NamedKeys.TryGetValue(vk, out var named)) return named;
         if (vk is >= 0x70 and <= 0x83) return "f" + (vk - 0x6F);
-        var ch = CharFromVk(vk, scan);
+        if (vk is >= 0x84 and <= 0x93) return "f" + (vk - 0x6F);
+        var ch = CharFromVk(vk, scan, flags);
         return ch ?? "";
     }
 
-    private static string? CharFromVk(uint vk, uint scan)
+    /// 键名 → 字符:键盘状态由钩子线程自维护(钩子线程不消费键盘消息,GetKeyboardState 拿不到真实状态)。
+    private string? CharFromVk(uint vk, uint scan, uint flags)
     {
         try
         {
             var state = new byte[256];
-            if (!GetKeyboardState(state)) return null;
+            BuildKeyState(state);
+            // 扩展键(方向键/小键盘 Enter/右 Ctrl 等)扫描码需带扩展位
+            var scanCode = (flags & LlkhfExtended) != 0 ? scan | 0x100 : scan;
             var layout = GetKeyboardLayout(0);
             var sb = new StringBuilder(8);
-            var len = ToUnicodeEx(vk, scan, state, sb, sb.Capacity, 0, layout);
-            if (len == 1) return sb.ToString(0, 1);
-            if (len > 1) return sb.ToString(0, 1);
-            return null;
+            var len = ToUnicodeEx(vk, scanCode, state, sb, sb.Capacity, 0, layout);
+            if (len < 0)
+            {
+                // 死键:再调一次清掉死键状态,否则下一次会拿到上一次的组合结果
+                ToUnicodeEx(vk, scanCode, state, sb, sb.Capacity, 0, layout);
+                return null;
+            }
+            if (len < 1) return null;
+            var ch = sb.ToString(0, 1);
+            // ToUnicodeEx 不认 lpKeyState 的 CapsLock 位(传了还会翻转系统 CapsLock 状态),
+            // 故 CapsLock 由钩子自行跟踪,拿到字符后反相大小写
+            if (_capsLock) ch = InvertCase(ch);
+            return ch;
         }
         catch
         {
             return null;
+        }
+    }
+
+    /// 大小写反相(仅字母)。
+    private static string InvertCase(string ch)
+    {
+        if (ch.Length != 1) return ch;
+        var c = ch[0];
+        if (char.IsLower(c)) return char.ToUpperInvariant(c).ToString();
+        if (char.IsUpper(c)) return char.ToLowerInvariant(c).ToString();
+        return ch;
+    }
+
+    /// 组装键盘状态数组:高位置 1 表示该键按下(ToUnicodeEx 据此还原 Shift / AltGr)。
+    /// 只放 Shift/Ctrl/Alt:开关键位(Caps/Num)传给 ToUnicodeEx 会翻转系统状态,不可用。
+    private void BuildKeyState(byte[] state)
+    {
+        Array.Clear(state);
+        if (_lShift || _rShift)
+        {
+            state[0x10] = 0x80;
+            state[0xA0] = 0x80;
+            state[0xA1] = 0x80;
+        }
+        if (_lCtrl || _rCtrl)
+        {
+            state[0x11] = 0x80;
+            state[0xA2] = 0x80;
+            state[0xA3] = 0x80;
+        }
+        if (_lAlt || _rAlt)
+        {
+            state[0x12] = 0x80;
+            state[0xA4] = 0x80;
+            state[0xA5] = 0x80;
+        }
+    }
+
+    /// 维护修饰键状态(仅钩子线程访问)。
+    /// 通用码(0x10/0x11/0x12)无法区分左右,按下与松开都同步到两侧。
+    private void UpdateModifierState(uint vk, bool isDown)
+    {
+        switch (vk)
+        {
+            case 0x10: _lShift = isDown; _rShift = isDown; break;
+            case 0xA0: _lShift = isDown; break;
+            case 0xA1: _rShift = isDown; break;
+            case 0x11: _lCtrl = isDown; _rCtrl = isDown; break;
+            case 0xA2: _lCtrl = isDown; break;
+            case 0xA3: _rCtrl = isDown; break;
+            case 0x12: _lAlt = isDown; _rAlt = isDown; break;
+            case 0xA4: _lAlt = isDown; break;
+            case 0xA5: _rAlt = isDown; break;
+            case 0x14: if (isDown) _capsLock = !_capsLock; break;
         }
     }
 
@@ -304,9 +392,6 @@ public sealed class InputHookService : IDisposable
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern nint GetModuleHandleW(string? lpModuleName);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetKeyboardState(byte[] lpKeyState);
 
     [DllImport("user32.dll")]
     private static extern nint GetKeyboardLayout(uint idThread);
