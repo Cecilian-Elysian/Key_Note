@@ -34,8 +34,8 @@ public sealed partial class SettingsPage : Page
             new FieldSpec(FieldKind.Switch, "start_minimized", "启动时最小化", "开机后直接驻留托盘,不弹出主窗口。"),
             new FieldSpec(FieldKind.Switch, "close_to_tray", "关闭窗口到托盘", "点关闭按钮时最小化到托盘而不是退出程序。"),
             new FieldSpec(FieldKind.Switch, "hide_tray_icon", "隐藏托盘图标", "隐藏后重启仍保持隐藏;打开主窗口,回到本页关闭此项即可恢复显示。", Advanced: true),
-            new FieldSpec(FieldKind.Switch, "listener_enabled", "启动时启动监听", "启动时开启全局键盘监听,关闭后不再记录按键。", Advanced: true),
-            new FieldSpec(FieldKind.Switch, "mouse_listener_enabled", "记录鼠标点击", "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数。", Advanced: true),
+            new FieldSpec(FieldKind.Switch, "listener_enabled", "启动时启动监听", "关闭后不再记录按键;重新打开会立即开始记录,无需重启。", Advanced: true),
+            new FieldSpec(FieldKind.Switch, "mouse_listener_enabled", "记录鼠标点击", "后台记录鼠标左/右/中键与侧键(X1/X2)点击次数;关闭后立即停止。", Advanced: true),
             new FieldSpec(FieldKind.Number, "idle_pause_min", "闲置自动暂停(分钟)", "无键盘/鼠标活动超过该时长后自动暂停记录,0 = 不暂停。", 0, 240, 1, Advanced: true),
         }),
         ("界面", new[]
@@ -561,6 +561,10 @@ public sealed partial class SettingsPage : Page
             App.Instance.ApplyWindowAlpha(cfg.GetDouble("window_alpha", 1.0));
             App.Instance.ApplyHotkeySettings();
             App.Instance.ApplyIdlePause(cfg.GetInt("idle_pause_min", 0));
+            if (WindowService.Current is MainWindow mw)
+            {
+                mw.UpdateStatus(!App.Instance.Hooks.IsPaused, App.Instance.Hooks.IsRunning);
+            }
 
             StatusText.Text = "已保存";
         }

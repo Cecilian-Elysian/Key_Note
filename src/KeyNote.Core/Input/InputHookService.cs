@@ -32,6 +32,9 @@ public sealed class InputHookService : IDisposable
 
     private volatile bool _recording = true;
     private volatile bool _mouseRecording = true;
+    private volatile bool _started;
+    private volatile bool _kbInstalled;
+    private volatile bool _msInstalled;
     private string _lastKeyName = "";
     private long _lastKeyStamp; // Stopwatch ticks
 
@@ -47,11 +50,22 @@ public sealed class InputHookService : IDisposable
     /// 任意键盘/鼠标活动(闲置检测用)。
     public event Action? ActivityFired;
 
+    /// 键盘钩子安装完成(钩子线程触发,订阅方需自行切回 UI 线程)。
+    public event Action? HookReady;
+
     public bool IsPaused => !_recording;
     public bool IsMousePaused => !_mouseRecording;
 
+    /// 键盘钩子是否已安装(未安装则根本没有在记录)。
+    public bool IsRunning => _kbInstalled;
+
+    /// 鼠标钩子是否已安装。
+    public bool IsMouseRunning => _msInstalled;
+
     public void Start()
     {
+        if (_started) return;
+        _started = true;
         _kbThread = new Thread(KbLoop) { IsBackground = true, Name = "hook-kb" };
         _kbThread.SetApartmentState(ApartmentState.STA);
         _kbThread.Start();
@@ -61,12 +75,24 @@ public sealed class InputHookService : IDisposable
     }
 
     public void Pause() => _recording = false;
-    public void Resume() => _recording = true;
+
+    /// 恢复记录:钩子尚未安装时直接装上(设置页开关即时生效,无需重启)。
+    public void Resume()
+    {
+        if (!_started)
+        {
+            Start();
+            return;
+        }
+        _recording = true;
+    }
+
     public void PauseMouse() => _mouseRecording = false;
     public void ResumeMouse() => _mouseRecording = true;
 
     public void Dispose()
     {
+        _started = false;
         StopThread(_kbThreadId, ref _kbHook);
         StopThread(_msThreadId, ref _msHook);
     }
@@ -84,9 +110,12 @@ public sealed class InputHookService : IDisposable
         _kbThreadId = GetCurrentThreadId();
         var ctor = new HookDelegate(KbProc);
         _kbHook = SetWindowsHookExW(WhKeyboardLl, ctor, GetModuleHandleW(null), 0);
+        _kbInstalled = _kbHook != 0;
         if (_kbHook == 0) CrashLog.Write("hook.keyboard", message: $"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
+        else HookReady?.Invoke();
         while (GetMessageW(out _, 0, 0, 0) > 0) { }
         if (_kbHook != 0) UnhookWindowsHookEx(_kbHook);
+        _kbInstalled = false;
         GC.KeepAlive(ctor);
     }
 
@@ -153,9 +182,11 @@ public sealed class InputHookService : IDisposable
         _msThreadId = GetCurrentThreadId();
         var ctor = new HookDelegate(MsProc);
         _msHook = SetWindowsHookExW(WhMouseLl, ctor, GetModuleHandleW(null), 0);
+        _msInstalled = _msHook != 0;
         if (_msHook == 0) CrashLog.Write("hook.mouse", message: $"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
         while (GetMessageW(out _, 0, 0, 0) > 0) { }
         if (_msHook != 0) UnhookWindowsHookEx(_msHook);
+        _msInstalled = false;
         GC.KeepAlive(ctor);
     }
 

@@ -238,15 +238,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// 标题栏状态胶囊:记录中 / 已暂停
-    public void UpdateStatus(bool recording)
+    /// 标题栏状态胶囊:未启动 / 已暂停 / 记录中
+    public void UpdateStatus(bool recording, bool running = true)
     {
         try
         {
-            var color = recording ? UiPalette.Good : UiPalette.Offline;
+            var text = !running ? "未启动" : recording ? "记录中" : "已暂停";
+            var color = !running ? UiPalette.Offline : recording ? UiPalette.Good : UiPalette.Mid;
             StatusPill.Visibility = Visibility.Visible;
             StatusPill.Background = new SolidColorBrush(UiPalette.Tint(color));
-            StatusPillText.Text = recording ? "记录中" : "已暂停";
+            StatusPillText.Text = text;
             StatusPillText.Foreground = new SolidColorBrush(color);
             StatusDot.Fill = new SolidColorBrush(color);
         }

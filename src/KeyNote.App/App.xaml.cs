@@ -116,7 +116,9 @@ public partial class App : Application
         // 钩子:全局键鼠监听
         Hooks = new InputHookService();
         Hooks.ActivityFired += OnActivity;
+        Hooks.HookReady += () => window.DispatcherQueue.TryEnqueue(() => window.UpdateStatus(!Hooks.IsPaused, Hooks.IsRunning));
         if (Settings.ListenerEnabled) Hooks.Start();
+        if (!Settings.MouseListenerEnabled) Hooks.PauseMouse();
         ApplyIdlePause(Settings.GetInt("idle_pause_min", 0));
 
         // 闲置检测定时器
@@ -135,8 +137,10 @@ public partial class App : Application
             OnCheckUpdate = () => CheckUpdateManually(window),
             OnTogglePause = () =>
             {
-                if (Hooks.IsPaused) Hooks.Resume(); else Hooks.Pause();
-                window.UpdateStatus(!Hooks.IsPaused);
+                if (!Hooks.IsRunning) Hooks.Start();
+                else if (Hooks.IsPaused) Hooks.Resume();
+                else Hooks.Pause();
+                window.UpdateStatus(!Hooks.IsPaused, Hooks.IsRunning);
             },
             OnBackup = () => window.RunBackup(),
             OnVacuum = () => window.RunVacuum(),
@@ -155,7 +159,7 @@ public partial class App : Application
         StartDailyUpdateCheck(window);
 
         // 状态胶囊
-        window.UpdateStatus(!Hooks.IsPaused);
+        window.UpdateStatus(!Hooks.IsPaused, Hooks.IsRunning);
         window.SetContentOpacity(Settings.GetDouble("window_alpha", 1.0));
 
         // 静默/最小化启动
