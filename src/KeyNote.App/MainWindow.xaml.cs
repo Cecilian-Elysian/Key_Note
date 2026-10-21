@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using KeyNote.Core.Storage;
 using KeyNote.App.Services;
+using KeyNote.App.Theme;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -244,9 +245,9 @@ public sealed partial class MainWindow : Window
         try
         {
             var text = !running ? "未启动" : recording ? "记录中" : "已暂停";
-            var color = !running ? UiPalette.Offline : recording ? UiPalette.Good : UiPalette.Mid;
+            var color = !running ? UiColors.Offline : recording ? UiColors.Success : UiColors.Warning;
             StatusPill.Visibility = Visibility.Visible;
-            StatusPill.Background = new SolidColorBrush(UiPalette.Tint(color));
+            StatusPill.Background = new SolidColorBrush(UiColors.Tint(color));
             StatusPillText.Text = text;
             StatusPillText.Foreground = new SolidColorBrush(color);
             StatusDot.Fill = new SolidColorBrush(color);

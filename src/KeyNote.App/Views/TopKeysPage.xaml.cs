@@ -11,22 +11,14 @@ public sealed partial class TopKeysPage : Page, IRefreshable
     public TopKeysPage()
     {
         InitializeComponent();
-        Header.RefreshRequested += (_, _) => RefreshData();
-        Loaded += (_, _) => RefreshData();
+        PageRefresh.Wire(this, Header, RefreshData);
     }
 
     public void RefreshData()
     {
-        try
-        {
-            // 合并大小写:与键盘热力图同口径,两页数字才对得上
-            var data = KeyNoteDb.TopKeysMergedCase(10);
-            Chart.SetData(data);
-            Summary.Text = data.Count > 0 ? $"最高 {data[0].Key.ToUpperInvariant()} × {data[0].Count:N0}" : "";
-        }
-        catch (Exception ex)
-        {
-            Core.Utils.CrashLog.Write("topkeys.refresh", ex);
-        }
+        // 合并大小写:与键盘热力图同口径,两页数字才对得上
+        var data = KeyNoteDb.TopKeysMergedCase(10);
+        Chart.SetData(data);
+        Summary.Text = data.Count > 0 ? $"最高 {data[0].Key.ToUpperInvariant()} × {data[0].Count:N0}" : "";
     }
 }

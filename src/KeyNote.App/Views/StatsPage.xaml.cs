@@ -30,8 +30,7 @@ public sealed partial class StatsPage : Page, IRefreshable
     public StatsPage()
     {
         InitializeComponent();
-        Header.RefreshRequested += (_, _) => RefreshData();
-        Loaded += (_, _) => RefreshData();
+        PageRefresh.Wire(this, Header, RefreshData);
     }
 
     private void RangeBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
@@ -47,28 +46,21 @@ public sealed partial class StatsPage : Page, IRefreshable
 
     public void RefreshData()
     {
-        try
-        {
-            var days = RangeDays(_range);
-            var rangeLabel = RangeLabel(_range);
+        var days = RangeDays(_range);
+        var rangeLabel = RangeLabel(_range);
 
-            KpiTotal.Value = KeyNoteDb.CountKeysSince(days).ToString("N0");
-            KpiMouse.Value = KeyNoteDb.MouseSince(days).ToString("N0");
-            KpiActive.Value = KeyNoteDb.DailyActiveDays(days).ToString("N0");
-            KpiTotal.Footnote = $"全时累计 {KeyNoteDb.CountTotal():N0}";
-            KpiMouse.Footnote = MouseFoot();
-            KpiActive.Footnote = rangeLabel;
+        KpiTotal.Value = KeyNoteDb.CountKeysSince(days).ToString("N0");
+        KpiMouse.Value = KeyNoteDb.MouseSince(days).ToString("N0");
+        KpiActive.Value = KeyNoteDb.DailyActiveDays(days).ToString("N0");
+        KpiTotal.Footnote = $"全时累计 {KeyNoteDb.CountTotal():N0}";
+        KpiMouse.Footnote = MouseFoot();
+        KpiActive.Footnote = rangeLabel;
 
-            UpdateTypePills();
-            UpdateTrend();
+        UpdateTypePills();
+        UpdateTrend();
 
-            var streak = KeyNoteDb.StreakDays(365);
-            Header.Subtitle = streak > 0 ? $"已连续记录 {streak} 天" : "暂无历史记录";
-        }
-        catch (Exception ex)
-        {
-            Core.Utils.CrashLog.Write("stats.refresh", ex);
-        }
+        var streak = KeyNoteDb.StreakDays(365);
+        Header.Subtitle = streak > 0 ? $"已连续记录 {streak} 天" : "暂无历史记录";
     }
 
     /// 时间范围 → 天数

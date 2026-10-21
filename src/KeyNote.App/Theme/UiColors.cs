@@ -15,10 +15,14 @@ internal static class UiColors
     public static readonly Windows.UI.Color Warning = Hex("#FAA817");
     public static readonly Windows.UI.Color Danger = Hex("#E2445C");
     public static readonly Windows.UI.Color Offline = Hex("#8E8E93");
+    public static readonly Windows.UI.Color Source24G = Hex("#AF52DE");
     public static readonly Windows.UI.Color Border = Hex("#3D3D3D");
     public static readonly Windows.UI.Color Divider = Hex("#2F2F2F");
     public static readonly Windows.UI.Color ChartFace = Hex("#272727");
     public static readonly Windows.UI.Color ChartLine = Hex("#0A84FF");
+    public static readonly Windows.UI.Color ChartTipBg = Hex("#F21C1C1C");
+    public static readonly Windows.UI.Color ChartTipBorder = Hex("#FF3D3D3D");
+    public static readonly Windows.UI.Color ChartTipFg = Hex("#FFFFFFFF");
     public static readonly Windows.UI.Color HeatmapEmpty = Hex("#303030");
     public static readonly Windows.UI.Color HeatmapL1 = Hex("#0E4429");
     public static readonly Windows.UI.Color HeatmapL2 = Hex("#006D32");

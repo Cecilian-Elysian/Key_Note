@@ -13,21 +13,13 @@ public sealed partial class KeyboardPage : Page, IRefreshable
     public KeyboardPage()
     {
         InitializeComponent();
-        Header.RefreshRequested += (_, _) => RefreshData();
-        Loaded += (_, _) => RefreshData();
+        PageRefresh.Wire(this, Header, RefreshData);
     }
 
     public void RefreshData()
     {
-        try
-        {
-            UpdateHourly();
-            UpdateKeyboard();
-        }
-        catch (Exception ex)
-        {
-            Core.Utils.CrashLog.Write("keyboard.refresh", ex);
-        }
+        UpdateHourly();
+        UpdateKeyboard();
     }
 
     private void UpdateHourly()

@@ -66,7 +66,7 @@ public sealed partial class SettingsPage : Page
             {
                 Width = 3,
                 Height = 14,
-                Background = new SolidColorBrush(Services.UiPalette.Accent),
+                Background = new SolidColorBrush(Theme.UiColors.Accent),
                 CornerRadius = new CornerRadius(2),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0),
