@@ -10,6 +10,8 @@ namespace KeyNote.App.Controls;
 /// 7×24 小时活跃度热力图(1:1 移植 Python keyboard.py 的 _draw_hourly)。
 public sealed partial class HourlyGridControl : UserControl
 {
+    /// 布局计算出的建议高度(由页面决定实际高度)
+    public double DesiredHeight { get; private set; }
     private static readonly string[] CnWeekdays = { "一", "二", "三", "四", "五", "六", "日" };
 
     private int[,] _grid = new int[7, 24];
@@ -75,12 +77,9 @@ public sealed partial class HourlyGridControl : UserControl
         var gridH = 7 * cell + 6 * gap;
         var contentH = gridH + 2 + labelH + legendH;
         var needed = (int)(contentH + padY * 2);
-        if (Math.Abs(h - needed) > 2)
-        {
-            cv.Height = needed;
-            Height = needed;
-            h = needed;
-        }
+        // 高度由页面决定(DesiredHeight 仅供页面参考),控件不改自身 Height
+        DesiredHeight = needed;
+        if (Math.Abs(h - needed) > 2) h = needed;
 
         _ox = marginX + Math.Max(0, (usableW - gridW) / 2);
         _oy = Math.Max(padY, (h - contentH) / 2);

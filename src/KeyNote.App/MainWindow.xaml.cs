@@ -207,9 +207,14 @@ public sealed partial class MainWindow : Window
 
         if (ContentFrame.CurrentSourcePageType != page)
         {
+            // 新建页面:首次加载由页面自身的 Loaded 触发刷新(避免重复取数)
             ContentFrame.Navigate(page);
         }
-        RefreshCurrentPage();
+        else
+        {
+            // 复用已有页面(从别页切回):Loaded 不会再次触发,需显式刷新
+            RefreshCurrentPage();
+        }
     }
 
     /// 切到指定页(托盘⚙入口用)

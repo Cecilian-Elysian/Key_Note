@@ -131,9 +131,12 @@ public sealed partial class KeyboardHeatmapControl : UserControl
         Canvas.SetTop(more, legendY + box / 2 - 7);
         cv.Children.Add(more);
 
-        cv.Height = (int)(legendY + 14);
-        Height = cv.Height;
+        // 高度由页面决定(DesiredHeight 仅供页面参考),控件不改自身 Height
+        DesiredHeight = legendY + 14;
     }
+
+    /// 布局计算出的建议高度(由页面决定实际高度)
+    public double DesiredHeight { get; private set; }
 
     private void AddKey(Canvas cv, string key, double x0, double y0, double x1, double y1, string label, double fontSize = 10)
     {

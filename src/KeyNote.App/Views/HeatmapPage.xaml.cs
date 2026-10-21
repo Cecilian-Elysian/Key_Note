@@ -21,6 +21,8 @@ public sealed partial class HeatmapPage : Page, IRefreshable
 
         var (daily, start, end) = KeyNoteDb.HeatmapYearly(days);
         Heatmap.SetData(daily, start, end);
+        // 高度由页面决定(控件只给建议值)
+        Heatmap.Height = Heatmap.DesiredHeight;
         YearTitle.Text = $"过去 {days} 天 · 每日贡献";
         YearSummary.Text = Heatmap.Summary;
     }

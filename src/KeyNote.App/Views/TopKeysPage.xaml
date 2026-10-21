@@ -3,20 +3,24 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:KeyNote.App.Controls">
-    <ScrollViewer Padding="20,16,20,16">
-        <StackPanel Spacing="12">
-            <controls:PageHeader x:Name="Header" Title="常用按键" Subtitle="按使用频次排序" />
+    <Grid RowDefinitions="Auto,*">
+        <!-- 页头固定,不随内容滚动 -->
+        <controls:PageHeader x:Name="Header" Title="常用按键" Subtitle="按使用频次排序" Margin="20,16,20,0" />
 
-            <Border Style="{StaticResource AppCardStyle}">
-                <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Style="{StaticResource CardTitleStyle}" Text="Top 10 按键" />
-                        <TextBlock x:Name="Summary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
-                                   VerticalAlignment="Center" Text="" />
-                    </Grid>
-                    <controls:BarChartControl x:Name="Chart" Height="320" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+        <ScrollViewer Grid.Row="1" Padding="20,10,20,16"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12">
+                <Border Style="{StaticResource AppCardStyle}">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Style="{StaticResource CardTitleStyle}" Text="Top 10 按键" />
+                            <TextBlock x:Name="Summary" Grid.Column="1" Style="{StaticResource CardFootnoteStyle}"
+                                       VerticalAlignment="Center" Text="" />
+                        </Grid>
+                        <controls:BarChartControl x:Name="Chart" Height="320" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Page>

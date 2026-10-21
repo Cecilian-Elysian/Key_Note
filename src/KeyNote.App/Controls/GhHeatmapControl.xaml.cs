@@ -249,9 +249,12 @@ public sealed partial class GhHeatmapControl : UserControl
         cv.Children.Add(_hoverRect);
         if (_hovered.col >= 0) UpdateHoverRect();
 
-        Height = totalUsed;
-        cv.Height = totalUsed;
+        // 高度由页面决定(DesiredHeight 仅供页面参考),控件不改自身 Height
+        DesiredHeight = totalUsed;
     }
+
+    /// 布局计算出的建议高度(由页面决定实际高度)
+    public double DesiredHeight { get; private set; }
 
     private void DrawMonthLabels(Canvas cv, double ox, double oy, double cell, double spacing, int startCol, int colsInRow)
     {

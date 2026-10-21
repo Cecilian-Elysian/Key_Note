@@ -26,6 +26,8 @@ public sealed partial class KeyboardPage : Page, IRefreshable
     {
         var grid = KeyNoteDb.HeatmapData(7);
         HourlyGrid.SetGrid(grid);
+        // 高度由页面决定(控件只给建议值)
+        HourlyGrid.Height = HourlyGrid.DesiredHeight;
         var total = 0;
         var active = 0;
         var peak = 0;
@@ -57,6 +59,8 @@ public sealed partial class KeyboardPage : Page, IRefreshable
             counts[key] = counts.GetValueOrDefault(key) + (int)Math.Min(c, int.MaxValue);
         }
         KeyboardHeatmap.SetCounts(counts);
+        // 高度由页面决定(控件只给建议值)
+        KeyboardHeatmap.Height = KeyboardHeatmap.DesiredHeight;
 
         if (counts.Count > 0)
         {

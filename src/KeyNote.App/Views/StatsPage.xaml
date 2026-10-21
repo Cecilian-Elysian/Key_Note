@@ -4,37 +4,41 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:KeyNote.App.Controls"
     xmlns:theme="using:KeyNote.App.Theme">
-    <ScrollViewer Padding="20,16,20,16">
-        <StackPanel Spacing="10">
-            <controls:PageHeader x:Name="Header" Title="统计" Subtitle="" />
+    <Grid RowDefinitions="Auto,*">
+        <!-- 页头固定,不随内容滚动 -->
+        <controls:PageHeader x:Name="Header" Title="统计" Subtitle="" Margin="20,16,20,0" />
 
-            <!-- 时间范围筛选 -->
-            <SelectorBar x:Name="RangeBar" SelectionChanged="RangeBar_SelectionChanged" HorizontalAlignment="Left">
-                <SelectorBarItem x:Name="RangeToday" Text="今日" IsSelected="False" />
-                <SelectorBarItem x:Name="RangeWeek" Text="近 7 天" IsSelected="False" />
-                <SelectorBarItem x:Name="RangeMonth" Text="近 30 天" IsSelected="True" />
-            </SelectorBar>
+        <ScrollViewer Grid.Row="1" Padding="20,10,20,16"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="10">
+                <!-- 时间范围筛选 -->
+                <SelectorBar x:Name="RangeBar" SelectionChanged="RangeBar_SelectionChanged" HorizontalAlignment="Left">
+                    <SelectorBarItem x:Name="RangeToday" Text="今日" IsSelected="False" />
+                    <SelectorBarItem x:Name="RangeWeek" Text="近 7 天" IsSelected="False" />
+                    <SelectorBarItem x:Name="RangeMonth" Text="近 30 天" IsSelected="True" />
+                </SelectorBar>
 
-            <!-- 3 张 KPI 卡 -->
-            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
-                <controls:KpiCard x:Name="KpiTotal" Grid.Column="0" Label="累计按键" Value="—" />
-                <controls:KpiCard x:Name="KpiMouse" Grid.Column="1" Label="鼠标点击" Value="—" />
-                <controls:KpiCard x:Name="KpiActive" Grid.Column="2" Label="活跃天数" Value="—" />
-            </Grid>
+                <!-- 3 张 KPI 卡 -->
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                    <controls:KpiCard x:Name="KpiTotal" Grid.Column="0" Label="累计按键" Value="—" />
+                    <controls:KpiCard x:Name="KpiMouse" Grid.Column="1" Label="鼠标点击" Value="—" />
+                    <controls:KpiCard x:Name="KpiActive" Grid.Column="2" Label="活跃天数" Value="—" />
+                </Grid>
 
-            <!-- 键型分布胶囊行 -->
-            <StackPanel x:Name="TypePillRow" Orientation="Horizontal" Spacing="6" />
+                <!-- 键型分布胶囊行 -->
+                <StackPanel x:Name="TypePillRow" Orientation="Horizontal" Spacing="6" />
 
-            <!-- 趋势图卡 -->
-            <Border Style="{StaticResource AppCardStyle}">
-                <StackPanel Spacing="4">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                        <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
-                                   Text="按键趋势" />
-                    </Grid>
-                    <controls:TrendChartControl x:Name="TrendChart" Height="200" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+                <!-- 趋势图卡 -->
+                <Border Style="{StaticResource AppCardStyle}">
+                    <StackPanel Spacing="4">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                            <TextBlock x:Name="TrendTitle" Grid.Column="0" Style="{StaticResource CardTitleStyle}"
+                                       Text="按键趋势" />
+                        </Grid>
+                        <controls:TrendChartControl x:Name="TrendChart" Height="200" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Page>
