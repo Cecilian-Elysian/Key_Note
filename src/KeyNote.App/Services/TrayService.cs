@@ -331,13 +331,10 @@ public sealed class TrayService : IDisposable
         AppendMenuW(menu, flags, id, text ?? string.Empty);
     }
 
+    /// 近 1 小时平均按键/分钟:分母固定 60 分钟(按活跃分钟平均会在空闲时虚高)
     private static double Rate1h()
     {
-        var rows = KeyNoteDb.RateSeries(1);
-        if (rows.Count == 0) return 0;
-        double total = 0;
-        foreach (var (_, c) in rows) total += c;
-        return total / rows.Count;
+        return KeyNoteDb.CpmRecent(60);
     }
 
     private static string RecentBars()

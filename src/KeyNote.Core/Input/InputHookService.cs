@@ -35,8 +35,8 @@ public sealed class InputHookService : IDisposable
     private volatile bool _started;
     private volatile bool _kbInstalled;
     private volatile bool _msInstalled;
-    private string _lastKeyName = "";
-    private long _lastKeyStamp; // Stopwatch ticks
+    // 处于按下态的键(钩子线程访问):用于识别系统自动重复
+    private readonly HashSet<uint> _pressed = [];
 
     // 修饰键状态(仅钩子线程访问):用于还原大小写 / CapsLock / AltGr
     private bool _lShift;
@@ -151,18 +151,22 @@ public sealed class InputHookService : IDisposable
             FireActivity();
             return;
         }
-        if (!isDown) return;
+
+        if (!isDown)
+        {
+            // 松开:解除按下状态(不记录)
+            _pressed.Remove(vk);
+            return;
+        }
+        if (!_pressed.Add(vk))
+        {
+            // 该键仍处于按下态 → 系统自动重复(长按),同一次物理按下只计一次
+            FireActivity();
+            return;
+        }
 
         var name = KeyName(vk, scan, flags);
         if (string.IsNullOrEmpty(name)) return;
-
-        var stamp = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (name == _lastKeyName && (stamp - _lastKeyStamp) < StopwatchFrequency * 0.08)
-        {
-            return;
-        }
-        _lastKeyName = name;
-        _lastKeyStamp = stamp;
 
         FireActivity();
         if (!_recording) return;

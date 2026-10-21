@@ -511,10 +511,28 @@ public static class KeyNoteDb
         return (int)(long)(Scalar("SELECT COUNT(*) FROM keypresses WHERE ts >= $ts", ("$ts", midnight)) ?? 0L);
     }
 
+    /// 全时累计按键数:走小时桶(agg_hour 行数远小于 agg_minute,避免每次刷新全表扫)。
     public static long CountTotal()
     {
         if (!Ready) return 0;
-        return (long)(Scalar("SELECT COALESCE(SUM(count), 0) FROM agg_minute WHERE minute_ts BETWEEN $a AND $b", ("$a", MinMs), ("$b", MaxMs)) ?? 0L);
+        return (long)(Scalar("SELECT COALESCE(SUM(count), 0) FROM agg_hour") ?? 0L);
+    }
+
+    /// 近 N 天按键数(按日桶求和)。
+    public static long CountKeysSince(int days)
+    {
+        if (!Ready) return 0;
+        var since = Math.Max(MinMs, new DateTimeOffset(DateTime.Today.AddDays(-(days - 1))).ToUnixTimeMilliseconds());
+        return (long)(Scalar("SELECT COALESCE(SUM(count), 0) FROM agg_day WHERE day_ts >= $a", ("$a", since)) ?? 0L);
+    }
+
+    /// 近 N 天鼠标点击数(鼠标聚合表无时间维度,只能查 raw)。
+    /// 口径与键盘侧一致:按日历日(今日零点起算 N 天),不用滚动 24 小时。
+    public static long MouseSince(int days)
+    {
+        if (!Ready) return 0;
+        var since = Math.Max(MinMs, LocalMidnightMs(DateTime.Today.AddDays(-(days - 1))));
+        return (long)(Scalar("SELECT COUNT(*) FROM mouse_clicks WHERE ts >= $a", ("$a", since)) ?? 0L);
     }
 
     public static List<(string Key, long Count)> TopKeys(int n = 20)
@@ -523,6 +541,20 @@ public static class KeyNoteDb
         if (!Ready) return rows;
         using var cmd = Read()!.CreateCommand();
         cmd.CommandText = "SELECT key, count FROM agg_key_total ORDER BY count DESC LIMIT $n";
+        cmd.Parameters.AddWithValue("$n", n);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
+        return rows;
+    }
+
+    /// Top 按键(合并大小写):统计页与键盘热力图口径统一,避免两页数字对不上。
+    public static List<(string Key, long Count)> TopKeysMergedCase(int n = 20)
+    {
+        var rows = new List<(string, long)>();
+        if (!Ready) return rows;
+        using var cmd = Read()!.CreateCommand();
+        cmd.CommandText = "SELECT LOWER(key) AS k, SUM(count) AS c FROM agg_key_total " +
+                          "GROUP BY LOWER(key) ORDER BY c DESC LIMIT $n";
         cmd.Parameters.AddWithValue("$n", n);
         using var r = cmd.ExecuteReader();
         while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
@@ -562,13 +594,14 @@ public static class KeyNoteDb
         return grid;
     }
 
-    /// GitHub 风格年度热力图:grid[week, dow](周一=0)
-    public static (int[,] Grid, DateTime Start, DateTime End) HeatmapYearly(int days = 365)
+    /// GitHub 风格年度热力图数据:按天返回(count 数组,长度 = days)。
+    /// 早期版本返回固定 53 周网格,days > 371 时超出部分被静默丢弃 → 改为日粒度直返。
+    public static (long[] Daily, DateTime Start, DateTime End) HeatmapYearly(int days = 365)
     {
         var end = DateTime.Today;
         var start = end.AddDays(-(days - 1));
-        var grid = new int[53, 7];
-        if (!Ready) return (grid, start, end);
+        var daily = new long[Math.Max(1, days)];
+        if (!Ready) return (daily, start, end);
         var since = Math.Max(MinMs, new DateTimeOffset(start).ToUnixTimeMilliseconds());
         using var cmd = Read()!.CreateCommand();
         cmd.CommandText = "SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN $a AND $b";
@@ -579,12 +612,10 @@ public static class KeyNoteDb
         {
             var local = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(0)).LocalDateTime.Date;
             var delta = (local - start).Days;
-            if (delta < 0 || delta >= days) continue;
-            var week = delta / 7;
-            var dow = DowIndex(local);
-            if (week is >= 0 and < 53) grid[week, dow] += (int)r.GetInt64(1);
+            if (delta < 0 || delta >= daily.Length) continue;
+            daily[delta] += r.GetInt64(1);
         }
-        return (grid, start, end);
+        return (daily, start, end);
     }
 
     public static List<(long DayTs, long Count)> DailyCounts(int days = 30)
@@ -603,6 +634,7 @@ public static class KeyNoteDb
         return rows;
     }
 
+    /// 连续记录天数:今天还没动静时从昨天起算(否则每天早上都归零)。
     public static int StreakDays(int days = 365)
     {
         var byDay = new Dictionary<DateTime, long>();
@@ -613,6 +645,7 @@ public static class KeyNoteDb
         }
         if (byDay.Count == 0) return 0;
         var cursor = DateTime.Today;
+        if (byDay.GetValueOrDefault(cursor) <= 0) cursor = cursor.AddDays(-1);
         var streak = 0;
         while (byDay.GetValueOrDefault(cursor) > 0)
         {

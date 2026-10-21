@@ -601,6 +601,13 @@ public sealed partial class SettingsPage : Page
             App.Instance.Hooks.ResumeMouse();
             KeyNoteDb.SetRetentionDays(365);
             App.Instance.ApplyWindowAlpha(1.0);
+            // 恢复默认必须同步运行时状态,否则旧值继续生效(如闲置暂停仍按旧分钟数)
+            App.Instance.ApplyIdlePause(0);
+            App.Instance.Tray.SetVisible(true);
+            if (WindowService.Current is MainWindow mw)
+            {
+                mw.UpdateStatus(!App.Instance.Hooks.IsPaused, App.Instance.Hooks.IsRunning);
+            }
 
             Build();
             StatusText.Text = "已恢复默认";

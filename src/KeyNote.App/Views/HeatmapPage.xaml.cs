@@ -1,4 +1,5 @@
 using KeyNote.App.Controls;
+using KeyNote.Core.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -21,8 +22,8 @@ public sealed partial class HeatmapPage : Page, IRefreshable
             var days = App.Instance.Settings.HeatmapDays;
             Header.Subtitle = $"最近 {days} 天的按键分布";
 
-            Heatmap.Days = days;
-            Heatmap.Refresh();
+            var (daily, start, end) = KeyNoteDb.HeatmapYearly(days);
+            Heatmap.SetData(daily, start, end);
             YearTitle.Text = $"过去 {days} 天 · 每日贡献";
             YearSummary.Text = Heatmap.Summary;
         }

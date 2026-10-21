@@ -49,12 +49,15 @@ public sealed partial class StatsPage : Page, IRefreshable
     {
         try
         {
-            KpiTotal.Value = KeyNoteDb.CountTotal().ToString("N0");
-            KpiMouse.Value = KeyNoteDb.MouseTotal().ToString("N0");
-            KpiActive.Value = KeyNoteDb.DailyActiveDays(30).ToString("N0");
-            KpiTotal.Footnote = $"今日 +{KeyNoteDb.CountToday():N0}";
+            var days = RangeDays(_range);
+            var rangeLabel = RangeLabel(_range);
+
+            KpiTotal.Value = KeyNoteDb.CountKeysSince(days).ToString("N0");
+            KpiMouse.Value = KeyNoteDb.MouseSince(days).ToString("N0");
+            KpiActive.Value = KeyNoteDb.DailyActiveDays(days).ToString("N0");
+            KpiTotal.Footnote = $"全时累计 {KeyNoteDb.CountTotal():N0}";
             KpiMouse.Footnote = MouseFoot();
-            KpiActive.Footnote = "近 30 天";
+            KpiActive.Footnote = rangeLabel;
 
             UpdateTypePills();
             UpdateTrend();
@@ -67,6 +70,21 @@ public sealed partial class StatsPage : Page, IRefreshable
             Core.Utils.CrashLog.Write("stats.refresh", ex);
         }
     }
+
+    /// 时间范围 → 天数
+    private static int RangeDays(int range) => range switch
+    {
+        RangeIdxToday => 1,
+        RangeIdxWeek => 7,
+        _ => 30,
+    };
+
+    private static string RangeLabel(int range) => range switch
+    {
+        RangeIdxToday => "今日",
+        RangeIdxWeek => "近 7 天",
+        _ => "近 30 天",
+    };
 
     private void UpdateTrend()
     {

@@ -19,9 +19,10 @@ public sealed partial class TopKeysPage : Page, IRefreshable
     {
         try
         {
-            var data = KeyNoteDb.TopKeys(10);
+            // 合并大小写:与键盘热力图同口径,两页数字才对得上
+            var data = KeyNoteDb.TopKeysMergedCase(10);
             Chart.SetData(data);
-            Summary.Text = data.Count > 0 ? $"最高 {data[0].Key} × {data[0].Count:N0}" : "";
+            Summary.Text = data.Count > 0 ? $"最高 {data[0].Key.ToUpperInvariant()} × {data[0].Count:N0}" : "";
         }
         catch (Exception ex)
         {

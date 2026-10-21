@@ -52,13 +52,18 @@ public sealed partial class KeyboardPage : Page, IRefreshable
 
     private void UpdateKeyboard()
     {
-        var rows = KeyNoteDb.TopKeys(5000);
+        var rows = KeyNoteDb.TopKeysMergedCase(5000);
         var fp = string.Join(",", rows.Select(r => $"{r.Key}:{r.Count}"));
         if (fp == _kbFp) return;
         _kbFp = fp;
 
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (k, c) in rows) counts[k.ToLowerInvariant()] = (int)c;
+        foreach (var (k, c) in rows)
+        {
+            // 合并大小写:同一键的大小写要累加,不能覆盖(否则 "a" 与 "A" 只会留下一个)
+            var key = k.ToLowerInvariant();
+            counts[key] = counts.GetValueOrDefault(key) + (int)Math.Min(c, int.MaxValue);
+        }
         KeyboardHeatmap.SetCounts(counts);
 
         if (counts.Count > 0)

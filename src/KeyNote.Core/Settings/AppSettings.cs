@@ -116,36 +116,48 @@ public sealed class AppSettings
     // ──── 类型化取值(缺键回退默认) ────
     public bool GetBool(string key, bool def = false)
     {
-        if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<bool>(out var b)) return b;
+        lock (Gate)
+        {
+            if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<bool>(out var b)) return b;
+        }
         return def;
     }
 
     public int GetInt(string key, int def = 0)
     {
-        if (_data.TryGetValue(key, out var n) && n is JsonValue v)
+        lock (Gate)
         {
-            if (v.TryGetValue<int>(out var i)) return i;
-            if (v.TryGetValue<double>(out var d)) return (int)d;
+            if (_data.TryGetValue(key, out var n) && n is JsonValue v)
+            {
+                if (v.TryGetValue<int>(out var i)) return i;
+                if (v.TryGetValue<double>(out var d)) return (int)d;
+            }
         }
         return def;
     }
 
     public double GetDouble(string key, double def = 0)
     {
-        if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<double>(out var d)) return d;
+        lock (Gate)
+        {
+            if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<double>(out var d)) return d;
+        }
         return def;
     }
 
     public string GetString(string key, string def = "")
     {
-        if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<string>(out var s)) return s;
+        lock (Gate)
+        {
+            if (_data.TryGetValue(key, out var n) && n is JsonValue v && v.TryGetValue<string>(out var s)) return s;
+        }
         return def;
     }
 
-    public void Set(string key, bool value) => _data[key] = JsonValue.Create(value);
-    public void Set(string key, int value) => _data[key] = JsonValue.Create(value);
-    public void Set(string key, double value) => _data[key] = JsonValue.Create(value);
-    public void Set(string key, string value) => _data[key] = JsonValue.Create(value);
+    public void Set(string key, bool value) { lock (Gate) { _data[key] = JsonValue.Create(value); } }
+    public void Set(string key, int value) { lock (Gate) { _data[key] = JsonValue.Create(value); } }
+    public void Set(string key, double value) { lock (Gate) { _data[key] = JsonValue.Create(value); } }
+    public void Set(string key, string value) { lock (Gate) { _data[key] = JsonValue.Create(value); } }
 
     // ──── 常用键糖衣 ────
     public bool ListenerEnabled => GetBool("listener_enabled", true);

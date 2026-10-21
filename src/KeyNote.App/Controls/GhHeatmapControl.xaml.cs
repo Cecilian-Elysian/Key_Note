@@ -1,4 +1,4 @@
-using KeyNote.App.Theme;
+﻿using KeyNote.App.Theme;
 using KeyNote.Core.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,7 +11,6 @@ namespace KeyNote.App.Controls;
 /// GitHub 风格年度贡献热力图(1:1 移植 Python gh_heatmap.py:多行拆分 + 分位数四色阶 + 悬停提示)。
 public sealed partial class GhHeatmapControl : UserControl
 {
-    private const int TotalCols = 53;
     private const int Rows = 7;
 
     private const double CellMin = 6;
@@ -32,15 +31,15 @@ public sealed partial class GhHeatmapControl : UserControl
 
     private int _days = 365;
     private int _rowsCount = 2;
-    private int[] _dailyValues = [];
-    private int[] _subCols = [TotalCols];
+    private int _totalCols = 53;
+    private long[] _dailyValues = [];
+    private int[] _subCols = [53];
     private int[] _subStartCol = [0];
     private DateTime _startDt;
     private DateTime _gridStart;
-    private int[] _percentiles = [1, 1, 1];
+    private long[] _percentiles = [1, 1, 1];
     private (int col, int row, int sub) _hovered = (-1, -1, -1);
     private Rectangle? _hoverRect;
-    private string? _fp;
 
     public GhHeatmapControl()
     {
@@ -50,79 +49,57 @@ public sealed partial class GhHeatmapControl : UserControl
         PointerExited += (_, _) => HideTip();
     }
 
-    public int Days
-    {
-        get => _days;
-        set
-        {
-            _days = Math.Max(1, value);
-            _fp = null;
-            Refresh();
-        }
-    }
+    public int Days => _days;
 
-    public int RowCount
-    {
-        get => _rowsCount;
-        set
-        {
-            _rowsCount = Math.Max(1, value);
-            SplitIntoRows();
-            Render();
-        }
-    }
-
-    /// 摘要文本(活跃天数 / 峰值),供外部标题栏显示
-    public string Summary { get; private set; } = "";
-
-    public void Refresh(bool force = false)
+    /// 注入数据(日粒度计数 + 起止日);控件不直接查库,与其余图表控件契约一致。
+    public void SetData(long[] daily, DateTime start, DateTime end)
     {
         try
         {
-            var (grid, start, end) = KeyNoteDb.HeatmapYearly(_days);
-            var fp = $"{grid.GetLength(0)}x{grid.GetLength(1)}|{start:yyyyMMdd}|" +
-                     string.Join(",", Enumerable.Range(0, grid.GetLength(0)).Select(w =>
-                         string.Join(",", Enumerable.Range(0, 7).Select(d => grid[w, d]))));
-            if (!force && fp == _fp) return;
-            _fp = fp;
+            if (daily.Length == 0) return;
+            if (SameData(daily, start)) return;
 
-            _dailyValues = new int[_days];
-            var maxWeek = Math.Min(TotalCols, grid.GetLength(0));
-            var startDow = DowIndex(start);
-            for (var w = 0; w < maxWeek; w++)
-            {
-                for (var d = 0; d < Rows; d++)
-                {
-                    var v = grid[w, d];
-                    if (v <= 0) continue;
-                    var offset = w * 7 + (d - startDow + 7) % 7;
-                    if (offset >= 0 && offset < _days) _dailyValues[offset] = v;
-                }
-            }
+            _days = daily.Length;
+            _dailyValues = daily;
             _startDt = start;
-            _gridStart = start.AddDays(-startDow);
+            _gridStart = start.AddDays(-DowIndex(start));
+            _totalCols = (int)((end - _gridStart).TotalDays / 7) + 1;
 
             SplitIntoRows();
 
-            var nonZero = _dailyValues.Where(v => v > 0).OrderBy(v => v).ToList();
+            var nonZero = daily.Where(v => v > 0).OrderBy(v => v).ToList();
             _percentiles = CalcPercentiles(nonZero);
 
-            var total = _dailyValues.Sum();
-            var active = _dailyValues.Count(v => v > 0);
-            var maxVal = _dailyValues.Length > 0 ? _dailyValues.Max() : 0;
+            var active = daily.Count(v => v > 0);
+            var maxVal = daily.Max();
             Summary = $"活跃 {active}/{_days} · 峰值 {maxVal:N0}";
 
             Render();
         }
         catch (Exception ex)
         {
-            Core.Utils.CrashLog.Write("ghheatmap.refresh", ex);
+            Core.Utils.CrashLog.Write("ghheatmap.setdata", ex);
         }
     }
 
+    /// 数据未变化则跳过重绘
+    private bool SameData(long[] daily, DateTime start)
+    {
+        if (_dailyValues.Length != daily.Length) return false;
+        if (_startDt != start) return false;
+        for (var i = 0; i < daily.Length; i++)
+        {
+            if (_dailyValues[i] != daily[i]) return false;
+        }
+        return true;
+    }
+
+    /// 摘要文本(活跃天数 / 峰值),供外部标题栏显示
+    public string Summary { get; private set; } = "";
+
     private static int DowIndex(DateTime d) => ((int)d.DayOfWeek + 6) % 7;
 
-    private static int[] CalcPercentiles(List<int> sorted)
+    private static long[] CalcPercentiles(List<long> sorted)
     {
         var n = sorted.Count;
         if (n == 0) return [1, 1, 1];
@@ -135,8 +112,8 @@ public sealed partial class GhHeatmapControl : UserControl
     private void SplitIntoRows()
     {
         var r = _rowsCount;
-        var baseCols = TotalCols / r;
-        var rem = TotalCols - baseCols * r;
+        var baseCols = _totalCols / r;
+        var rem = _totalCols - baseCols * r;
         var cols = new List<int>();
         var starts = new List<int>();
         var cursor = 0;
@@ -151,7 +128,7 @@ public sealed partial class GhHeatmapControl : UserControl
         _subStartCol = starts.ToArray();
     }
 
-    private Windows.UI.Color BucketColor(int value)
+    private Windows.UI.Color BucketColor(long value)
     {
         if (value <= 0) return UiColors.HeatmapEmpty;
         var (p25, p50, p75) = (_percentiles[0], _percentiles[1], _percentiles[2]);
@@ -172,7 +149,7 @@ public sealed partial class GhHeatmapControl : UserControl
                           (rows * (Rows - 1)) * CellSpacing + inter + LegendH + 2 * MarginPx;
         if (availW < 50 || h < totalNeeded / 2) return null;
 
-        var maxCols = _subCols.Length > 0 ? _subCols.Max() : TotalCols;
+        var maxCols = _subCols.Length > 0 ? _subCols.Max() : _totalCols;
         var spacing = Math.Max(1, CellSpacing);
         var cell = (availW - (maxCols - 1) * spacing) / maxCols;
         cell = Math.Max(CellMin, Math.Min(CellMax, cell));
