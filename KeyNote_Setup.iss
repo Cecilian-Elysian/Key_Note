@@ -1,10 +1,16 @@
-﻿[Setup]
+﻿; 版本以 csproj 为唯一真源,build.ps1 经 /DAppVer 注入;直接编译本脚本时回退 1.0.0
+#ifndef AppVer
+  #define AppVer "1.0.0"
+#endif
+
+[Setup]
 AppName=KeyNote
-AppVersion=1.0.0
+AppVersion={#AppVer}
 AppPublisher=KeyNote Project
 DefaultDirName={localappdata}\KeyNote
-DisableDirPage=no
-UsePreviousAppDir=no
+; auto:首装显示目录页,升级(同 AppId)隐藏并沿用旧目录
+DisableDirPage=auto
+UsePreviousAppDir=yes
 DefaultGroupName=KeyNote
 OutputDir=installer
 OutputBaseFilename=KeyNote_Setup

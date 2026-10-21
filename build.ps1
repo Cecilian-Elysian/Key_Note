@@ -5,6 +5,13 @@ $DistDir = Join-Path $ProjectRoot "dist"
 $PublishDir = Join-Path $ProjectRoot "build\publish"
 $BackupDir = Join-Path $ProjectRoot "build\_data_bak"
 
+# 版本以 csproj 为唯一真源(安装包版本由其派生)
+$CsprojPath = Join-Path $ProjectRoot "src\KeyNote.App\KeyNote.App.csproj"
+[xml]$CsprojXml = Get-Content -LiteralPath $CsprojPath
+$AppVer = @($CsprojXml.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0]
+if (-not $AppVer) { $AppVer = "1.0.0" }
+Write-Host "VERSION: $AppVer" -ForegroundColor Cyan
+
 # Kill running instance to release file lock
 $Running = Get-Process -Name "KeyNote.App" -ErrorAction SilentlyContinue
 if ($Running) {
@@ -73,7 +80,7 @@ Write-Host "EXE: $DistDir\KeyNote.App.exe"
 $Isscc = Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"
 if (Test-Path $Isscc) {
     Write-Host "=== Inno Setup installer ===" -ForegroundColor Cyan
-    & $Isscc (Join-Path $ProjectRoot "KeyNote_Setup.iss") | Out-Null
+    & $Isscc "/DAppVer=$AppVer" (Join-Path $ProjectRoot "KeyNote_Setup.iss") | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Copy-Item (Join-Path $ProjectRoot "installer\KeyNote_Setup.exe") $DistDir -Force
         $setupMb = [math]::Round((Get-Item (Join-Path $DistDir "KeyNote_Setup.exe")).Length / 1MB, 1)
