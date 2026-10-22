@@ -27,6 +27,11 @@ UninstallDisplayIcon={app}\KeyNote.App.exe
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
+; 静默安装时自动关掉正在运行的 KeyNote(用 Restart Manager)并替换文件,装完自动重启
+; 应用内「下载并安装」就走这条路:拉起本安装器 + /VERYSILENT
+CloseApplications=yes
+RestartApplications=yes
+; 不设 AppMutex:它会让 Setup 弹窗等用户手动关闭,静默升级会卡住
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
