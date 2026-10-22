@@ -111,12 +111,31 @@ public static partial class KeyNoteDb
         cmd.ExecuteNonQuery();
     }
 
+    /// 事务内执行单条语句(连接上已有活动事务时,命令必须挂上该事务)。
+    private static void Exec(SqliteTransaction tx, string sql)
+    {
+        using var cmd = tx.Connection!.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
+    }
+
     private static object? Scalar(string sql, params (string, object?)[] args)
     {
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = sql;
+        using var cmd = ReadCmd(sql);
+        if (cmd is null) return null;
         foreach (var (n, v) in args) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
         return cmd.ExecuteScalar();
+    }
+
+    /// 安全读命令:读连接不可用(数据库打不开)时返回 null,由调用方返回空结果而不是抛 NRE。
+    private static SqliteCommand? ReadCmd(string sql)
+    {
+        var conn = Read();
+        if (conn is null) return null;
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        return cmd;
     }
 
     /// 读连接按线程隔离(UI 线程 + 托盘线程并发读;WAL 下互不阻塞)。
@@ -198,8 +217,8 @@ public static partial class KeyNoteDb
     {
         var rows = new List<(string, long)>();
         if (!Ready) return rows;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT key, count FROM agg_key_total ORDER BY count DESC LIMIT $n";
+        using var cmd = ReadCmd("SELECT key, count FROM agg_key_total ORDER BY count DESC LIMIT $n");
+        if (cmd is null) return rows;
         cmd.Parameters.AddWithValue("$n", n);
         using var r = cmd.ExecuteReader();
         while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
@@ -211,9 +230,9 @@ public static partial class KeyNoteDb
     {
         var rows = new List<(string, long)>();
         if (!Ready) return rows;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT LOWER(key) AS k, SUM(count) AS c FROM agg_key_total " +
-                          "GROUP BY LOWER(key) ORDER BY c DESC LIMIT $n";
+        using var cmd = ReadCmd("SELECT LOWER(key) AS k, SUM(count) AS c FROM agg_key_total " +
+                                "GROUP BY LOWER(key) ORDER BY c DESC LIMIT $n");
+        if (cmd is null) return rows;
         cmd.Parameters.AddWithValue("$n", n);
         using var r = cmd.ExecuteReader();
         while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
@@ -225,8 +244,8 @@ public static partial class KeyNoteDb
         var rows = new List<(long, long)>();
         if (!Ready) return rows;
         var since = Math.Max(MinMs, NowMs() - hours * 3_600_000L);
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN $a AND $b ORDER BY minute_ts";
+        using var cmd = ReadCmd("SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN $a AND $b ORDER BY minute_ts");
+        if (cmd is null) return rows;
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);
         using var r = cmd.ExecuteReader();
@@ -240,8 +259,8 @@ public static partial class KeyNoteDb
         var grid = new int[7, 24];
         if (!Ready) return grid;
         var since = Math.Max(MinMs, NowMs() - days * 86_400_000L);
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN $a AND $b";
+        using var cmd = ReadCmd("SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN $a AND $b");
+        if (cmd is null) return grid;
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);
         using var r = cmd.ExecuteReader();
@@ -262,8 +281,8 @@ public static partial class KeyNoteDb
         var daily = new long[Math.Max(1, days)];
         if (!Ready) return (daily, start, end);
         var since = Math.Max(MinMs, new DateTimeOffset(start).ToUnixTimeMilliseconds());
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN $a AND $b";
+        using var cmd = ReadCmd("SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN $a AND $b");
+        if (cmd is null) return (daily, start, end);
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);
         using var r = cmd.ExecuteReader();
@@ -284,8 +303,8 @@ public static partial class KeyNoteDb
         var end = DateTime.Today;
         var start = end.AddDays(-(days - 1));
         var since = Math.Max(MinMs, new DateTimeOffset(start).ToUnixTimeMilliseconds());
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN $a AND $b ORDER BY day_ts";
+        using var cmd = ReadCmd("SELECT day_ts, count FROM agg_day WHERE day_ts BETWEEN $a AND $b ORDER BY day_ts");
+        if (cmd is null) return rows;
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);
         using var r = cmd.ExecuteReader();
@@ -328,8 +347,8 @@ public static partial class KeyNoteDb
         var rows = new List<(long, long)>();
         if (!Ready) return rows;
         var since = Math.Max(MinMs, LocalMidnightMs(DateTime.Now));
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT hour_ts, count FROM agg_hour WHERE hour_ts BETWEEN $a AND $b ORDER BY hour_ts";
+        using var cmd = ReadCmd("SELECT hour_ts, count FROM agg_hour WHERE hour_ts BETWEEN $a AND $b ORDER BY hour_ts");
+        if (cmd is null) return rows;
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);
         using var r = cmd.ExecuteReader();
@@ -355,8 +374,8 @@ public static partial class KeyNoteDb
     {
         var rows = new List<(string, long)>();
         if (!Ready) return rows;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT button, count FROM agg_mouse_button_total ORDER BY count DESC";
+        using var cmd = ReadCmd("SELECT button, count FROM agg_mouse_button_total ORDER BY count DESC");
+        if (cmd is null) return rows;
         using var r = cmd.ExecuteReader();
         while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
         return rows;
@@ -366,8 +385,8 @@ public static partial class KeyNoteDb
     {
         var rows = new List<(string, long)>();
         if (!Ready) return rows;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT type, count FROM agg_key_type_total ORDER BY count DESC";
+        using var cmd = ReadCmd("SELECT type, count FROM agg_key_type_total ORDER BY count DESC");
+        if (cmd is null) return rows;
         using var r = cmd.ExecuteReader();
         while (r.Read()) rows.Add((r.GetString(0), r.GetInt64(1)));
         return rows;

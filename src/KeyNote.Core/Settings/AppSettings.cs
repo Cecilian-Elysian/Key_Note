@@ -40,6 +40,12 @@ public sealed class AppSettings
 
     private AppSettings() { }
 
+    /// 上次加载时配置是否损坏并被恢复(设置页据此提示用户)。
+    public static bool WasRecovered { get; private set; }
+
+    /// 损坏配置的备份路径(未损坏时为空)。
+    public static string RecoveryBackupPath { get; private set; } = "";
+
     // ──── 加载/保存 ────
     public static AppSettings Load()
     {
@@ -65,10 +71,30 @@ public sealed class AppSettings
                 }
                 return merged;
             }
-            catch
+            catch (Exception ex)
             {
+                // 配置损坏:原文件改名备份,不让后续保存把用户配置整份覆盖掉
+                Utils.CrashLog.Write("config.parse", ex);
+                WasRecovered = true;
+                RecoveryBackupPath = BackupCorrupted();
                 return FromDefaults();
             }
+        }
+    }
+
+    /// 损坏的 config.json 改名为 config.json.bak 留存(不删除用户数据)。
+    private static string BackupCorrupted()
+    {
+        try
+        {
+            var bak = ConfigPath + ".bak";
+            if (File.Exists(bak)) File.Delete(bak);
+            File.Move(ConfigPath, bak);
+            return bak;
+        }
+        catch
+        {
+            return "";
         }
     }
 

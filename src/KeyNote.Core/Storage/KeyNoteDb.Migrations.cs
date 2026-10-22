@@ -55,18 +55,30 @@ public static partial class KeyNoteDb
     private static void MigrateToV4()
     {
         // 旧数据按 UTC 整除分桶,回填为本地整点/整分/整日
-        // 不开显式事务:逐语句自动提交,重写幂等;中断则版本号未推进,下次重跑
-        RewriteBuckets("agg_day", "day_ts", LocalMidnightMs);
-        RewriteBuckets("agg_hour", "hour_ts", LocalHourMs);
-        RewriteBuckets("agg_minute", "minute_ts", LocalMinuteMs);
-        Exec("INSERT INTO schema_version(version, applied_at) VALUES (4, " + NowMs() + ")");
+        // 整个重写放在一个事务里:中途崩溃则整体回滚,不会留下"表已清空但没重写"的空表
+        using var tx = _conn!.BeginTransaction();
+        try
+        {
+            RewriteBuckets(tx, "agg_day", "day_ts", LocalMidnightMs);
+            RewriteBuckets(tx, "agg_hour", "hour_ts", LocalHourMs);
+            RewriteBuckets(tx, "agg_minute", "minute_ts", LocalMinuteMs);
+            Exec(tx, "INSERT INTO schema_version(version, applied_at) VALUES (4, " + NowMs() + ")");
+            tx.Commit();
+        }
+        catch (Exception ex)
+        {
+            try { tx.Rollback(); } catch { /* 回滚失败忽略 */ }
+            CrashLog.Write("db.migrate.v4", ex);
+            throw;
+        }
     }
 
-    private static void RewriteBuckets(string table, string column, Func<DateTime, long> toLocal)
+    private static void RewriteBuckets(SqliteTransaction tx, string table, string column, Func<DateTime, long> toLocal)
     {
         var buckets = new Dictionary<long, long>();
-        using (var read = _conn!.CreateCommand())
+        using (var read = tx.Connection!.CreateCommand())
         {
+            read.Transaction = tx;
             read.CommandText = $"SELECT {column}, count FROM {table}";
             using var r = read.ExecuteReader();
             while (r.Read())
@@ -78,9 +90,10 @@ public static partial class KeyNoteDb
                 buckets[newTs] = buckets.GetValueOrDefault(newTs) + cnt;
             }
         }
-        Exec($"DELETE FROM {table}");
+        Exec(tx, $"DELETE FROM {table}");
         if (buckets.Count == 0) return;
-        using var ins = _conn.CreateCommand();
+        using var ins = tx.Connection!.CreateCommand();
+        ins.Transaction = tx;
         ins.CommandText = $"INSERT INTO {table}({column}, count) VALUES ($ts, $c) " +
                          "ON CONFLICT(" + column + ") DO UPDATE SET count = count + excluded.count";
         foreach (var (ts, cnt) in buckets)
@@ -141,8 +154,8 @@ public static partial class KeyNoteDb
     private static void EndSession()
     {
         if (_conn is null || _sessionId is null) return;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "UPDATE sessions SET ended_at = $ts WHERE id = $id";
+        using var cmd = ReadCmd("UPDATE sessions SET ended_at = $ts WHERE id = $id");
+        if (cmd is null) return;
         cmd.Parameters.AddWithValue("$ts", NowMs());
         cmd.Parameters.AddWithValue("$id", _sessionId.Value);
         cmd.ExecuteNonQuery();

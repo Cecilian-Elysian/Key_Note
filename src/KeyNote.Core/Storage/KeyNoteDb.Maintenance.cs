@@ -105,8 +105,8 @@ public static partial class KeyNoteDb
     {
         if (!Ready) return 0;
         var cutoff = NowMs() - Math.Max(1, days) * 86_400_000L;
-        using var cmd = Read()!.CreateCommand();
-        cmd.CommandText = "SELECT ts, key, session_id FROM keypresses WHERE ts >= $c ORDER BY ts";
+        using var cmd = ReadCmd("SELECT ts, key, session_id FROM keypresses WHERE ts >= $c ORDER BY ts");
+        if (cmd is null) return 0;
         cmd.Parameters.AddWithValue("$c", cutoff);
         using var r = cmd.ExecuteReader();
         using var w = new StreamWriter(path, append: false, Encoding.UTF8);
@@ -118,10 +118,18 @@ public static partial class KeyNoteDb
             var key = r.GetString(1);
             var sid = r.IsDBNull(2) ? "" : r.GetInt64(2).ToString(CultureInfo.InvariantCulture);
             var iso = DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss");
-            w.WriteLine($"{iso},{key},{sid}");
+            w.WriteLine($"{Csv(iso)},{Csv(key)},{Csv(sid)}");
             count++;
         }
         return count;
+    }
+
+    /// CSV 字段转义(RFC 4180):含逗号/引号/换行的按键名必须加引号,内部引号翻倍。
+    private static string Csv(string value)
+    {
+        if (value.Length == 0) return "\"\"";
+        if (value.IndexOfAny([',', '"', '\n', '\r']) < 0) return value;
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
     public static HealthInfo Health()
@@ -138,6 +146,7 @@ public static partial class KeyNoteDb
             info.RawCount = (int)(long)(Scalar("SELECT COUNT(*) FROM keypresses") ?? 0L);
             info.MinuteBuckets = (int)(long)(Scalar("SELECT COUNT(*) FROM agg_minute") ?? 0L);
             info.UniqueKeys = (int)(long)(Scalar("SELECT COUNT(*) FROM agg_key_total") ?? 0L);
+            info.DroppedEvents = Interlocked.Read(ref _droppedEvents);
             var backups = BackupFiles();
             info.LastBackupTs = backups.Count > 0 ? (long)(backups[0].LastWriteTime - new DateTime(1970, 1, 1)).TotalSeconds : 0;
         }
@@ -185,4 +194,7 @@ public sealed class HealthInfo
     public int UniqueKeys { get; set; }
     public long LastBackupTs { get; set; }
     public int RetentionDays { get; set; }
+
+    /// 落盘失败被丢弃的事件数(数据完整性可见,不再静默丢数)
+    public long DroppedEvents { get; set; }
 }

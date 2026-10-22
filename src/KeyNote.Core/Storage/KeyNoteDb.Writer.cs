@@ -127,12 +127,35 @@ public static partial class KeyNoteDb
                 UpsertTextBuckets(tx, "agg_mouse_button_total", "button", mouse);
             }
             tx.Commit();
+            Interlocked.Exchange(ref _writeFailures, 0);
         }
         catch (Exception ex)
         {
             CrashLog.Write("db.write", ex);
+            // 落盘失败:整批重新入队(有界重试),否则这批数据(最多 200 条)会静默消失
+            RequeueBatch(batch);
         }
     }
+
+    /// 失败批次回队;连续失败超过上限则计入丢弃计数(供 Health() 暴露)。
+    private static void RequeueBatch(List<WriteItem> batch)
+    {
+        if (_queue is null || _shutdown) return;
+        if (Interlocked.Increment(ref _writeFailures) > MaxWriteFailures)
+        {
+            Interlocked.Add(ref _droppedEvents, batch.Count);
+            return;
+        }
+        foreach (var item in batch)
+        {
+            if (!_queue.TryAdd(item)) Interlocked.Increment(ref _droppedEvents);
+        }
+    }
+
+    /// 落盘连续失败次数(成功一次即清零)。
+    private static int _writeFailures;
+    private static long _droppedEvents;
+    private const int MaxWriteFailures = 5;
 
     private static void Exec(SqliteTransaction tx, string sql, IEnumerable<(string, object?)[]> rows)
     {
