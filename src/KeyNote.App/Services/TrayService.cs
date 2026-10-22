@@ -16,6 +16,7 @@ public sealed class TrayService : IDisposable
     private const int WmLButtonUp = 0x0202;
     private const int WmLButtonDblClk = 0x0203;
     private const int WmRButtonUp = 0x0205;
+    private const int NinBalloonUserClick = 0x0005;
 
     /// explorer 重启后需要重新挂载托盘图标
     private static readonly uint TaskbarCreatedMsg = TrayNative.RegisterWindowMessageW("TaskbarCreated");
@@ -40,6 +41,7 @@ public sealed class TrayService : IDisposable
     public Action? OnShowWindow { get; set; }
     public Action? OnOpenSettings { get; set; }
     public Action? OnCheckUpdate { get; set; }
+    public Action? OnBalloonClicked { get; set; }
     public Action? OnTogglePause { get; set; }
     public Action? OnBackup { get; set; }
     public Action? OnVacuum { get; set; }
@@ -243,6 +245,12 @@ public sealed class TrayService : IDisposable
     private void HandleTrayClick(nint lParam)
     {
         var msg = (int)(lParam & 0xFFFF);
+        // 气泡被点击(NIN_BALLOONUSERCLICK):用于「发现新版本 → 点气泡下载安装」
+        if (msg == NinBalloonUserClick)
+        {
+            Run(() => OnBalloonClicked?.Invoke());
+            return;
+        }
         if (msg is WmLButtonUp or WmLButtonDblClk)
         {
             Run(() => OnShowWindow?.Invoke());

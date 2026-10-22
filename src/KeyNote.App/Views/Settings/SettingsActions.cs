@@ -42,7 +42,7 @@ public sealed partial class SettingsPage
         StatusText.Text = info.Message;
         if (_updateText is not null && info.HasUpdate && info.Latest is not null)
         {
-            _updateText.Text = $"发现新版本 v{info.Latest.ToString(3)},可在 Release 页下载安装包";
+            _updateText.Text = $"发现新版本 v{info.Latest.ToString(3)},点右侧「检查更新」可下载安装";
         }
         if (_updateRow is not null)
         {
@@ -76,6 +76,16 @@ public sealed partial class SettingsPage
                     StatusText.Text = "正在检查更新…";
                     var info = await UpdateService.CheckAsync();
                     ApplyUpdateResult(info);
+                    if (!info.HasUpdate) break;
+                    // 发现新版:弹确认框(下载安装 / 稍后)
+                    if (Content is FrameworkElement root && root.XamlRoot is not null)
+                    {
+                        var accepted = await UpdatePrompt.ShowAsync(info, root.XamlRoot, "取消");
+                        if (accepted)
+                        {
+                            await UpdateServiceApp.InstallAsync(info, root.XamlRoot);
+                        }
+                    }
                     break;
                 }
                 case "quit":

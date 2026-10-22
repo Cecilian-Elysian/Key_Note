@@ -30,6 +30,21 @@ public static partial class KeyNoteDb
         }
     }
 
+    /// 立即把队列里的待写数据落盘(更新安装前调用:安装器会强制关进程,不能丢最后一批)
+    public static void Flush()
+    {
+        try
+        {
+            var final = new List<WriteItem>();
+            while (_queue is not null && _queue.TryTake(out var item)) final.Add(item);
+            if (final.Count > 0) FlushBatch(final);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("db.flush", ex);
+        }
+    }
+
     private static void WriterLoop(int batchSize, double interval)
     {
         while (!_shutdown)

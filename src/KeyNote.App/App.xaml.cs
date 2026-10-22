@@ -24,6 +24,12 @@ public partial class App : Application
     private DateTime _lastActivity = DateTime.Now;
     private bool _idlePaused;
 
+    /// 待确认的更新(每日静默检查发现新版时暂存,点气泡或手动检查时消费)
+    private UpdateService.UpdateInfo? _pendingUpdate;
+
+    /// 更新确认框同一次更新只弹一个
+    private int _updatePromptVisible;
+
     public bool IsQuitting => _quitting;
 
     /// 内容区不透明度(WinUI3 非打包窗口不支持整窗透明,退化为内容透明度)
@@ -135,6 +141,7 @@ public partial class App : Application
             OnShowWindow = () => window.ShowMainWindow(),
             OnOpenSettings = () => window.NavigateTo("settings"),
             OnCheckUpdate = () => CheckUpdateManually(window),
+            OnBalloonClicked = () => OnUpdateBalloonClicked(window),
             OnTogglePause = () =>
             {
                 if (!Hooks.IsRunning) Hooks.Start();
@@ -185,7 +192,7 @@ public partial class App : Application
     }
 
     // ──── 更新检查 ────
-    /// 启动后每日静默检查一次(距上次检查不足 24h 则跳过);仅在发现新版时发托盘气泡。
+    /// 启动后每日静默检查一次(距上次检查不足 24h 则跳过);发现新版发托盘气泡。
     private void StartDailyUpdateCheck(MainWindow window)
     {
         try
@@ -203,7 +210,9 @@ public partial class App : Application
                     // 仅成功才记每日时间戳:网络失败不该被 24h 静默窗吞掉
                     if (info.Ok) RecordUpdateCheckTime();
                     if (!info.HasUpdate) return;
-                    queue.TryEnqueue(() => Tray.Notify($"发现新版本 v{info.Latest?.ToString(3)},可在设置页打开下载页"));
+                    _pendingUpdate = info;
+                    var version = info.Latest?.ToString(3) ?? "";
+                    queue.TryEnqueue(() => Tray.Notify($"发现 KeyNote 新版本 v{version},点此可下载安装"));
                 }
                 catch (Exception ex)
                 {
@@ -217,8 +226,8 @@ public partial class App : Application
         }
     }
 
-    /// 手动检查更新(托盘菜单):结果走托盘气泡。
-    private void CheckUpdateManually(MainWindow window)
+    /// 手动检查更新(托盘菜单 / 设置页):结果走托盘气泡,发现新版则直接弹确认框。
+    private void CheckUpdateManually(MainWindow window, bool interactive = true)
     {
         try
         {
@@ -229,7 +238,14 @@ public partial class App : Application
                 {
                     var info = await UpdateService.CheckAsync();
                     if (info.Ok) RecordUpdateCheckTime();
-                    queue.TryEnqueue(() => Tray.Notify(info.Message));
+                    if (!info.HasUpdate)
+                    {
+                        queue.TryEnqueue(() => Tray.Notify(info.Message));
+                        return;
+                    }
+                    _pendingUpdate = info;
+                    queue.TryEnqueue(() => Tray.Notify($"发现新版本 v{info.Latest?.ToString(3)},点此可下载安装"));
+                    if (interactive) queue.TryEnqueue(() => _ = ShowPendingUpdate(window));
                 }
                 catch (Exception ex)
                 {
@@ -240,6 +256,77 @@ public partial class App : Application
         catch (Exception ex)
         {
             CrashLog.Write("app.update", ex);
+        }
+    }
+
+    /// 托盘气泡被点击:拉起主窗口并弹更新确认框。
+    private void OnUpdateBalloonClicked(MainWindow window)
+    {
+        window.ShowMainWindow();
+        if (_pendingUpdate is not null)
+        {
+            _ = ShowPendingUpdate(window);
+        }
+    }
+
+    /// 弹更新确认框并按用户选择执行下载安装。
+    /// XamlRoot 时序兜底:启动瞬间窗口未 Loaded 时 XamlRoot 为 null,弹框必失败,
+    /// 而窗口若已处于激活态就不会再触发 Loaded → 退到等根元素 Loaded 再补弹。
+    private async Task ShowPendingUpdate(MainWindow window)
+    {
+        if (_pendingUpdate is not { } info) return;
+        if (Interlocked.Exchange(ref _updatePromptVisible, 1) != 0) return;
+
+        try
+        {
+            var root = window.Content as FrameworkElement;
+            if (root?.XamlRoot is null)
+            {
+                _pendingUpdate = info;
+                if (root is not null)
+                {
+                    root.Loaded += RetryUpdatePrompt;
+                }
+                return;
+            }
+
+            var accepted = await UpdatePrompt.ShowAsync(info, root.XamlRoot);
+            if (accepted)
+            {
+                await RunUpdateInstall(window, info);
+            }
+            else
+            {
+                UpdateService.SetStatus("已选择稍后安装");
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("app.update.prompt", ex);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _updatePromptVisible, 0);
+        }
+    }
+
+    private void RetryUpdatePrompt(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe) fe.Loaded -= RetryUpdatePrompt;
+        if (WindowService.Current is MainWindow mw) _ = ShowPendingUpdate(mw);
+    }
+
+    /// 应用内下载 + 拉起安装器(自动替换 + 重启)。
+    private async Task RunUpdateInstall(MainWindow window, UpdateService.UpdateInfo info)
+    {
+        var root = window.Content as FrameworkElement;
+        if (root?.XamlRoot is null) return;
+
+        var launched = await UpdateServiceApp.InstallAsync(info, root.XamlRoot);
+        if (launched)
+        {
+            // 安装器会用 Restart Manager 关掉我们并替换文件,装完自动重启
+            Quit();
         }
     }
 
