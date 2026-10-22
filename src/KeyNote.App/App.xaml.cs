@@ -200,7 +200,8 @@ public partial class App : Application
                 try
                 {
                     var info = await UpdateService.CheckAsync();
-                    RecordUpdateCheckTime();
+                    // 仅成功才记每日时间戳:网络失败不该被 24h 静默窗吞掉
+                    if (info.Ok) RecordUpdateCheckTime();
                     if (!info.HasUpdate) return;
                     queue.TryEnqueue(() => Tray.Notify($"发现新版本 v{info.Latest?.ToString(3)},可在设置页打开下载页"));
                 }
@@ -227,7 +228,7 @@ public partial class App : Application
                 try
                 {
                     var info = await UpdateService.CheckAsync();
-                    RecordUpdateCheckTime();
+                    if (info.Ok) RecordUpdateCheckTime();
                     queue.TryEnqueue(() => Tray.Notify(info.Message));
                 }
                 catch (Exception ex)

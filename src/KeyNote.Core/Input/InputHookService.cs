@@ -270,20 +270,20 @@ public sealed class InputHookService : IDisposable
         0x2C, 0x91, 0x13, 0x5D,
     };
 
-    private const string LetterChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private const string DigitChars = "0123456789";
-    private const string SymbolChars = "!@#$%^&*()_+-=[]{}|;:'\\\",.<>?/`~ ";
-
     private static bool IsModifier(uint vk) => ModifierVks.Contains(vk);
 
     private static bool IsFunction(uint vk) => FunctionVks.Contains(vk);
 
+    /// 键型分类:字母 / 数字 / 符号 / 功能键。
+    /// 非 ASCII 字符(中文输入法、重音字母等)按 Unicode 类别判定,
+    /// 否则会被一律算成 function(实测中文输入占 function 的 18%)。
     private static string Classify(string name)
     {
         if (string.IsNullOrEmpty(name)) return "symbol";
-        if (LetterChars.Contains(name[0])) return "letter";
-        if (DigitChars.Contains(name[0])) return "digit";
-        if (SymbolChars.Contains(name[0])) return "symbol";
+        var c = name[0];
+        if (char.IsLetter(c)) return "letter";
+        if (char.IsDigit(c)) return "digit";
+        if (char.IsPunctuation(c) || char.IsSymbol(c) || char.IsSeparator(c) || char.IsControl(c)) return "symbol";
         return "function";
     }
 

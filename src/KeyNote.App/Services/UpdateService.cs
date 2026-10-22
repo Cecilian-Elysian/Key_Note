@@ -12,6 +12,7 @@ namespace KeyNote.App.Services;
 public static class UpdateService
 {
     /// 检查结果:HasUpdate 为真时 Latest/TagName/ReleaseUrl 有效。
+    /// Ok = 检查本身是否成功(失败不写每日时间戳,避免网络抖动被 24h 静默窗吞掉)。
     public sealed record UpdateInfo(
         Version Current,
         Version? Latest,
@@ -19,7 +20,8 @@ public static class UpdateService
         string ReleaseUrl,
         string AssetUrl,
         bool HasUpdate,
-        string Message);
+        string Message,
+        bool Ok = true);
 
     private const string ApiUrl = "https://api.github.com/repos/Cecilian-Elysian/Key_Note/releases/latest";
     private const string RepoUrl = "https://github.com/Cecilian-Elysian/Key_Note/releases";
@@ -58,11 +60,11 @@ public static class UpdateService
             }
             if (response.StatusCode == HttpStatusCode.Forbidden && IsRateLimited(response))
             {
-                return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "GitHub 请求限流,请稍后再试"));
+                return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "GitHub 请求限流,请稍后再试", Ok: false));
             }
             if (!response.IsSuccessStatusCode)
             {
-                return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, $"检查失败(HTTP {(int)response.StatusCode})"));
+                return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, $"检查失败(HTTP {(int)response.StatusCode})", Ok: false));
             }
 
             var json = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
@@ -70,17 +72,17 @@ public static class UpdateService
         }
         catch (TaskCanceledException)
         {
-            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "检查超时"));
+            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "检查超时", Ok: false));
         }
         catch (HttpRequestException ex)
         {
             CrashLog.Write("update.check", ex);
-            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "网络不可用,检查失败"));
+            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "网络不可用,检查失败", Ok: false));
         }
         catch (Exception ex)
         {
             CrashLog.Write("update.check", ex);
-            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "检查失败"));
+            return Publish(new UpdateInfo(current, null, string.Empty, RepoUrl, string.Empty, false, "检查失败", Ok: false));
         }
     }
 

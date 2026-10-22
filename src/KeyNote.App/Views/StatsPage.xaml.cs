@@ -14,13 +14,13 @@ public sealed partial class StatsPage : Page, IRefreshable
     private const int RangeIdxWeek = 1;
     private const int RangeIdxMonth = 2;
 
+    // 键型只统计四类(修饰键不计入统计,只记活跃)
     private static readonly (string Type, string Label, Windows.UI.Color Color)[] TypeMeta =
     {
-        ("letter", "字母", Windows.UI.Color.FromArgb(0xFF, 0x0A, 0x84, 0xFF)),
-        ("digit", "数字", Windows.UI.Color.FromArgb(0xFF, 0x34, 0xC7, 0x59)),
-        ("symbol", "符号", Windows.UI.Color.FromArgb(0xFF, 0xFA, 0xAA, 0x17)),
-        ("modifier", "修饰键", Windows.UI.Color.FromArgb(0xFF, 0xBF, 0x5A, 0xF2)),
-        ("function", "功能键", Windows.UI.Color.FromArgb(0xFF, 0x8E, 0x8E, 0x93)),
+        ("letter", "字母", UiColors.Accent),
+        ("digit", "数字", UiColors.Success),
+        ("symbol", "符号", UiColors.Warning),
+        ("function", "功能键", UiColors.Offline),
     };
 
     private int _range = RangeIdxMonth;

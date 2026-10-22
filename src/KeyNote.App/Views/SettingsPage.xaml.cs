@@ -278,11 +278,13 @@ public sealed partial class SettingsPage : Page
             if (cfg.ListenerEnabled) App.Instance.Hooks.Resume(); else App.Instance.Hooks.Pause();
             if (cfg.MouseListenerEnabled) App.Instance.Hooks.ResumeMouse(); else App.Instance.Hooks.PauseMouse();
             KeyNoteDb.SetRetentionDays(cfg.RetentionDays);
+            KeyNoteDb.SetBackupDir(cfg.GetString("backup_dir"));
             App.Instance.ApplyWindowAlpha(cfg.GetDouble("window_alpha", 1.0));
             App.Instance.ApplyHotkeySettings();
             App.Instance.ApplyIdlePause(cfg.GetInt("idle_pause_min", 0));
             if (WindowService.Current is MainWindow mw)
             {
+                mw.ApplyRefreshInterval(cfg.RefreshIntervalSec);
                 mw.UpdateStatus(!App.Instance.Hooks.IsPaused, App.Instance.Hooks.IsRunning);
             }
 

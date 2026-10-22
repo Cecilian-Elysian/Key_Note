@@ -29,6 +29,18 @@ public static partial class KeyNoteDb
     public static string DbPath { get; private set; } = "";
     public static string BackupDir { get; private set; } = "";
 
+    /// 当前数据目录(备份目录默认值基于它)
+    private static string _dataDir = "";
+
+    /// 运行时更新备份目录(设置页改「备份目录」后立即生效,无需重启)
+    public static void SetBackupDir(string dir)
+    {
+        lock (Gate)
+        {
+            BackupDir = string.IsNullOrEmpty(dir) ? Path.Combine(_dataDir, "backups") : dir;
+        }
+    }
+
     private readonly record struct WriteItem(double Ts, char Kind, string Payload, string KeyType);
 
     // ──── 初始化 ────
@@ -39,6 +51,7 @@ public static partial class KeyNoteDb
             var dataDir = cfg.GetString("data_dir");
             if (string.IsNullOrEmpty(dataDir)) dataDir = AppPaths.DataDir();
             Directory.CreateDirectory(dataDir);
+            _dataDir = dataDir;
             DbPath = Path.Combine(dataDir, "keynote.db");
             BackupDir = cfg.GetString("backup_dir");
             if (string.IsNullOrEmpty(BackupDir)) BackupDir = Path.Combine(dataDir, "backups");

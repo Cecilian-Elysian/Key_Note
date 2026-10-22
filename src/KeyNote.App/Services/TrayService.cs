@@ -26,6 +26,14 @@ public sealed class TrayService : IDisposable
     private nint _icon;
     private bool _visible;
 
+    /// 图标期望可见性(UI 线程写,托盘线程读):解决启动时序竞态
+    /// —— 此前 UI 线程在托盘线程挂图标之前就调 SetVisible(false),判断"已经是这个状态"直接返回,
+    /// 结果托盘线程随后照常把图标加上,「隐藏托盘图标」在启动时失效。
+    private volatile bool _desiredVisible = true;
+
+    /// 待发气泡(图标就绪前收到的通知,挂好图标后补发)
+    private string? _pendingBalloon;
+
     // ──── 回调(由 App 层接到 UI 线程) ────
     public Action<Action>? UiMarshal { get; set; }
     public Func<bool>? IsPaused { get; set; }
@@ -46,17 +54,28 @@ public sealed class TrayService : IDisposable
         _thread.Start();
     }
 
+    /// 设置图标可见性(立即生效;与托盘线程的挂/摘操作解耦,避免启动竞态)
     public void SetVisible(bool visible)
     {
+        _desiredVisible = visible;
         if (visible == _visible) return;
         if (visible) AddIcon();
         else RemoveIcon();
-        _visible = visible;
     }
 
+    /// 托盘气泡通知(图标尚未就绪时先排队,挂好图标后补发)
     public void Notify(string message)
     {
-        if (!_visible) return;
+        if (!_visible)
+        {
+            if (_desiredVisible) _pendingBalloon = message;
+            return;
+        }
+        ShowBalloon(message);
+    }
+
+    private void ShowBalloon(string message)
+    {
         try
         {
             var data = NotifyIconData();
@@ -105,7 +124,8 @@ public sealed class TrayService : IDisposable
             return;
         }
 
-        AddIcon();
+        // 托盘线程起来后按期望态挂图标(「隐藏托盘图标」时启动就不挂)
+        if (_desiredVisible) AddIcon();
 
         while (TrayNative.GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
@@ -138,6 +158,12 @@ public sealed class TrayService : IDisposable
                 if (_icon != IntPtr.Zero) TrayNative.DestroyIcon(_icon);
                 _icon = data.hIcon;
                 _visible = true;
+                // 图标就绪:补发之前排队的通知(否则启动提示会永久丢失)
+                if (_pendingBalloon is { } pending)
+                {
+                    _pendingBalloon = null;
+                    ShowBalloon(pending);
+                }
             }
             else
             {
@@ -278,7 +304,8 @@ public sealed class TrayService : IDisposable
         }
         if (msg == TaskbarCreatedMsg)
         {
-            AddIcon();
+            // explorer 重启后按期望态决定是否重新挂图标(此前无条件 AddIcon,会破坏「隐藏托盘图标」)
+            if (_desiredVisible) AddIcon();
             return IntPtr.Zero;
         }
         return TrayNative.DefWindowProcW(hWnd, msg, wParam, lParam);

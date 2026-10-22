@@ -38,7 +38,6 @@ public sealed partial class MainWindow : Window
         _refreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, App.Instance.Settings.RefreshIntervalSec));
         _refreshTimer.Tick += (_, _) => RefreshCurrentPage();
         _refreshTimer.Start();
-
         // 关闭窗口 → 最小化到托盘
         AppWindow.Closing += (_, args) =>
         {
@@ -135,6 +134,22 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             Core.Utils.CrashLog.Write("window.autorefresh", ex);
+        }
+    }
+
+    /// 运行时调整自动刷新间隔(设置页改「自动刷新间隔」后立即生效,无需重启)
+    public void ApplyRefreshInterval(int seconds)
+    {
+        try
+        {
+            if (_refreshTimer is not null)
+            {
+                _refreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, seconds));
+            }
+        }
+        catch (Exception ex)
+        {
+            Core.Utils.CrashLog.Write("window.refreshinterval", ex);
         }
     }
 
