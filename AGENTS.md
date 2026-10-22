@@ -90,7 +90,10 @@
 | `src/KeyNote.App/Services/TrayMenuBuilder.cs` | 托盘菜单构建(每次右键实时取数)+ 命令 ID |
 | `src/KeyNote.App/Services/AutostartService.cs` | 开机自启(HKCU Run 注册表) |
 | `src/KeyNote.App/Services/WindowBackdrop.cs` | Mica/Acrylic 能力探测与回退 |
-| `src/KeyNote.App/Services/UpdateService.cs` | 应用内更新检查(GitHub Releases API + 组件式版本比较 + 打开 Release 页) |
+| `src/KeyNote.App/Services/UpdateService.cs` | 应用内更新检查(GitHub Releases 列表端点 + 组件式版本比较 + 更新说明 + 状态广播) |
+| `src/KeyNote.App/Services/UpdateInstaller.cs` | 下载安装包(流式 + 大小校验)+ 拉起静默安装器 + 临时文件清理 |
+| `src/KeyNote.App/Services/UpdatePrompt.cs` | 更新确认框(版本对比 + Release 更新说明)+ 下载进度框 |
+| `src/KeyNote.App/Services/UpdateServiceApp.cs` | 「下载 → 校验 → 安装」共用流程(设置页与托盘气泡共用) |
 | `src/KeyNote.App/Services/MaintenanceService.cs` | 备份 / VACUUM / CSV 导出(托盘与设置页共用)|
 
 ### 7. 构建与部署
@@ -113,7 +116,7 @@
 
 ## 待办(TODO)
 - [x] ~~应用内更新检查~~:已实现(`Services/UpdateService.cs` + 设置页「关于」分组 + 托盘入口 + 启动每日静默检查)
-- [ ] **应用内静默更新**(下载 + 校验 + 拉起安装):当前走浏览器手动下载,后续评估
+- [x] ~~应用内静默更新~~:已实现(`UpdateInstaller` + `UpdatePrompt` + `UpdateServiceApp`:应用内下载 → 大小校验 → 拉起安装器自动替换并重启)
 - [ ] **发布体积瘦身**:`dist` 95MB 中约 88MB 是 Windows App SDK 运行时;可裁未用模块约 60 文件 / 12MB,`Microsoft.Windows.SDK.NET.dll`(23.8MB)需单独实验验证
 
 ## 已知取舍(Python → C# 迁移)
