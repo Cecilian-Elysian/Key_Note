@@ -199,7 +199,8 @@ public static partial class KeyNoteDb
     {
         if (!Ready) return 0;
         var midnight = LocalMidnightMs(DateTime.Now);
-        return (int)(long)(Scalar("SELECT COUNT(*) FROM keypresses WHERE ts >= $ts", ("$ts", midnight)) ?? 0L);
+        // 走日桶(agg_day 只有几百行);直接 COUNT(*) 扫 raw 表在百万行级要秒级
+        return (int)(long)(Scalar("SELECT COALESCE(SUM(count), 0) FROM agg_day WHERE day_ts >= $ts", ("$ts", midnight)) ?? 0L);
     }
 
     /// 全时累计按键数:走小时桶(agg_hour 行数远小于 agg_minute,避免每次刷新全表扫)。
@@ -267,12 +268,13 @@ public static partial class KeyNoteDb
     }
 
     /// 7×24 热力图:grid[weekday(周一=0), hour]
+    /// 走小时桶(agg_hour 行数 = 天数×24);此前扫分钟桶,7 天要拉 1 万行再在 C# 侧聚合
     public static int[,] HeatmapData(int days = 7)
     {
         var grid = new int[7, 24];
         if (!Ready) return grid;
         var since = Math.Max(MinMs, NowMs() - days * 86_400_000L);
-        using var cmd = ReadCmd("SELECT minute_ts, count FROM agg_minute WHERE minute_ts BETWEEN $a AND $b");
+        using var cmd = ReadCmd("SELECT hour_ts, count FROM agg_hour WHERE hour_ts BETWEEN $a AND $b");
         if (cmd is null) return grid;
         cmd.Parameters.AddWithValue("$a", since);
         cmd.Parameters.AddWithValue("$b", MaxMs);

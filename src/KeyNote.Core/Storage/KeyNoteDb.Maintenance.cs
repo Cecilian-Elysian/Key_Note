@@ -143,9 +143,8 @@ public static partial class KeyNoteDb
             var shm = DbPath + "-shm";
             info.WalBytes = File.Exists(wal) ? new FileInfo(wal).Length : 0;
             info.ShmBytes = File.Exists(shm) ? new FileInfo(shm).Length : 0;
-            info.RawCount = (int)(long)(Scalar("SELECT COUNT(*) FROM keypresses") ?? 0L);
-            info.MinuteBuckets = (int)(long)(Scalar("SELECT COUNT(*) FROM agg_minute") ?? 0L);
-            info.UniqueKeys = (int)(long)(Scalar("SELECT COUNT(*) FROM agg_key_total") ?? 0L);
+            // 原始行数用 MAX(rowid) 近似(COUNT(*) 在百万行级会全表扫,托盘每次右键都跑)
+            info.RawCount = (int)(long)(Scalar("SELECT COALESCE(MAX(rowid), 0) FROM keypresses") ?? 0L);
             info.DroppedEvents = Interlocked.Read(ref _droppedEvents);
             var backups = BackupFiles();
             info.LastBackupTs = backups.Count > 0 ? (long)(backups[0].LastWriteTime - new DateTime(1970, 1, 1)).TotalSeconds : 0;
@@ -190,8 +189,6 @@ public sealed class HealthInfo
     public long WalBytes { get; set; }
     public long ShmBytes { get; set; }
     public int RawCount { get; set; }
-    public int MinuteBuckets { get; set; }
-    public int UniqueKeys { get; set; }
     public long LastBackupTs { get; set; }
     public int RetentionDays { get; set; }
 

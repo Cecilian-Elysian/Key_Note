@@ -69,8 +69,8 @@ public static partial class KeyNoteDb
 
     private static void FlushBatch(List<WriteItem> batch)
     {
-        var kRows = new List<(long, string, long?)>();
-        var mRows = new List<(long, string, long?)>();
+        var kRows = new List<object?[]>();
+        var mRows = new List<object?[]>();
         var minute = new Dictionary<long, long>();
         var hour = new Dictionary<long, long>();
         var dowHour = new Dictionary<(int, int), long>();
@@ -86,7 +86,7 @@ public static partial class KeyNoteDb
             var local = DateTimeOffset.FromUnixTimeMilliseconds(tsMs).LocalDateTime;
             if (item.Kind == 'k')
             {
-                kRows.Add((tsMs, item.Payload, sid));
+                kRows.Add(new object?[] { tsMs, item.Payload, sid });
                 var mMs = LocalMinuteMs(local);
                 var hMs = LocalHourMs(local);
                 var dMs = LocalMidnightMs(local);
@@ -103,7 +103,7 @@ public static partial class KeyNoteDb
             }
             else if (item.Kind == 'm')
             {
-                mRows.Add((tsMs, item.Payload, sid));
+                mRows.Add(new object?[] { tsMs, item.Payload, sid });
                 mouse[item.Payload] = mouse.GetValueOrDefault(item.Payload) + 1;
             }
         }
@@ -113,7 +113,7 @@ public static partial class KeyNoteDb
             using var tx = _writerConn!.BeginTransaction();
             if (kRows.Count > 0)
             {
-                Exec(tx, "INSERT INTO keypresses (ts, key, session_id) VALUES ($ts, $key, $sid)", kRows.Select(r => new (string, object?)[] { ("$ts", r.Item1), ("$key", r.Item2), ("$sid", r.Item3) }));
+                ExecRows(tx, "INSERT INTO keypresses (ts, key, session_id) VALUES ", "", 3, kRows);
                 UpsertBuckets(tx, "agg_minute", "minute_ts", minute);
                 UpsertBuckets(tx, "agg_hour", "hour_ts", hour);
                 UpsertDowHour(tx, dowHour);
@@ -123,7 +123,7 @@ public static partial class KeyNoteDb
             }
             if (mRows.Count > 0)
             {
-                Exec(tx, "INSERT INTO mouse_clicks (ts, button, session_id) VALUES ($ts, $btn, $sid)", mRows.Select(r => new (string, object?)[] { ("$ts", r.Item1), ("$btn", r.Item2), ("$sid", r.Item3) }));
+                ExecRows(tx, "INSERT INTO mouse_clicks (ts, button, session_id) VALUES ", "", 3, mRows);
                 UpsertTextBuckets(tx, "agg_mouse_button_total", "button", mouse);
             }
             tx.Commit();
@@ -157,66 +157,77 @@ public static partial class KeyNoteDb
     private static long _droppedEvents;
     private const int MaxWriteFailures = 5;
 
-    private static void Exec(SqliteTransaction tx, string sql, IEnumerable<(string, object?)[]> rows)
+    /// 多行 INSERT / UPSERT:一次语句插多行,参数名按 行_列 唯一化
+    /// (SQLite 单条语句变量上限 999,按 900 变量分块)。
+    private static void ExecRows(SqliteTransaction tx, string head, string tail, int varsPerRow,
+        IEnumerable<object?[]> rows)
     {
-        using var cmd = _writerConn!.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = sql;
+        var chunk = new List<object?[]>();
         foreach (var row in rows)
         {
-            cmd.Parameters.Clear();
-            foreach (var (n, v) in row) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
-            cmd.ExecuteNonQuery();
+            chunk.Add(row);
+            if (chunk.Count * varsPerRow >= 900)
+            {
+                ExecChunk(tx, head, tail, varsPerRow, chunk);
+                chunk.Clear();
+            }
         }
+        if (chunk.Count > 0) ExecChunk(tx, head, tail, varsPerRow, chunk);
+    }
+
+    private static void ExecChunk(SqliteTransaction tx, string head, string tail, int varsPerRow,
+        List<object?[]> chunk)
+    {
+        var sb = new StringBuilder();
+        var bind = new List<(string, object?)>();
+        for (var r = 0; r < chunk.Count; r++)
+        {
+            if (r > 0) sb.Append(',');
+            sb.Append('(');
+            for (var i = 0; i < varsPerRow; i++)
+            {
+                if (i > 0) sb.Append(',');
+                var name = $"$p{r}_{i}";
+                sb.Append(name);
+                bind.Add((name, i < chunk[r].Length ? chunk[r][i] : null));
+            }
+            sb.Append(')');
+        }
+        using var cmd = _writerConn!.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = head + sb + tail;
+        foreach (var (n, v) in bind) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
     }
 
     private static void UpsertBuckets(SqliteTransaction tx, string table, string column, Dictionary<long, long> buckets)
     {
         if (buckets.Count == 0) return;
-        using var cmd = _writerConn!.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = $"INSERT INTO {table}({column}, count) VALUES ($ts, $c) " +
-                         $"ON CONFLICT({column}) DO UPDATE SET count = count + excluded.count";
-        foreach (var (ts, cnt) in buckets)
-        {
-            cmd.Parameters.Clear();
-            cmd.Parameters.AddWithValue("$ts", ts);
-            cmd.Parameters.AddWithValue("$c", cnt);
-            cmd.ExecuteNonQuery();
-        }
+        ExecRows(tx,
+            $"INSERT INTO {table}({column}, count) VALUES ",
+            $" ON CONFLICT({column}) DO UPDATE SET count = count + excluded.count",
+            2,
+            buckets.Select(b => new object?[] { b.Key, b.Value }));
     }
 
     private static void UpsertTextBuckets(SqliteTransaction tx, string table, string column, Dictionary<string, long> buckets)
     {
         if (buckets.Count == 0) return;
-        using var cmd = _writerConn!.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = $"INSERT INTO {table}({column}, count) VALUES ($k, $c) " +
-                         $"ON CONFLICT({column}) DO UPDATE SET count = count + excluded.count";
-        foreach (var (k, cnt) in buckets)
-        {
-            cmd.Parameters.Clear();
-            cmd.Parameters.AddWithValue("$k", k);
-            cmd.Parameters.AddWithValue("$c", cnt);
-            cmd.ExecuteNonQuery();
-        }
+        ExecRows(tx,
+            $"INSERT INTO {table}({column}, count) VALUES ",
+            $" ON CONFLICT({column}) DO UPDATE SET count = count + excluded.count",
+            2,
+            buckets.Select(b => new object?[] { b.Key, b.Value }));
     }
 
     private static void UpsertDowHour(SqliteTransaction tx, Dictionary<(int, int), long> buckets)
     {
         if (buckets.Count == 0) return;
-        using var cmd = _writerConn!.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "INSERT INTO agg_dow_hour(dow, hour, count) VALUES ($d, $h, $c) " +
-                         "ON CONFLICT(dow, hour) DO UPDATE SET count = count + excluded.count";
-        foreach (var ((d, h), cnt) in buckets)
-        {
-            cmd.Parameters.Clear();
-            cmd.Parameters.AddWithValue("$d", d);
-            cmd.Parameters.AddWithValue("$h", h);
-            cmd.Parameters.AddWithValue("$c", cnt);
-            cmd.ExecuteNonQuery();
-        }
+        ExecRows(tx,
+            "INSERT INTO agg_dow_hour(dow, hour, count) VALUES ",
+            " ON CONFLICT(dow, hour) DO UPDATE SET count = count + excluded.count",
+            3,
+            buckets.Select(b => new object?[] { b.Key.Item1, b.Key.Item2, b.Value }));
     }
 
     private static void MaybeCleanup()
