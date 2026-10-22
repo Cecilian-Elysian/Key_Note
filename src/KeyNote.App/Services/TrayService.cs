@@ -113,14 +113,16 @@ public sealed class TrayService : IDisposable
         };
         if (TrayNative.RegisterClassExW(ref wc) == 0)
         {
-            CrashLog.Write("tray", message: "RegisterClassExW failed");
+            CrashLog.Write("tray.init", message: "RegisterClassExW failed");
             return;
         }
 
-        _wnd = TrayNative.CreateWindowExW(0, "KeyNoteTrayWindow", "KeyNote", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
+        // 标题刻意不同于主窗口的 "KeyNote":Program.cs 用标题找主窗口来唤起实例,
+        // 若两者同名会命中这个隐藏消息窗口,导致第二实例唤起无效
+        _wnd = TrayNative.CreateWindowExW(0, "KeyNoteTrayWindow", "KeyNote.Tray", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
         if (_wnd == IntPtr.Zero)
         {
-            CrashLog.Write("tray", message: "CreateWindowExW failed");
+            CrashLog.Write("tray.init", message: "CreateWindowExW failed");
             return;
         }
 

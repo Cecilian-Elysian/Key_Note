@@ -11,8 +11,16 @@ installer/
 keynote.db
 keynote.db-wal
 keynote.db-shm
+keynote.db-journal
+*.db
+*.db-wal
+*.db-shm
 backups/
 config.json
+portable.flag
+*.bak
+*.tmp
+*.csv
 
 # IDE
 .vscode/

@@ -41,6 +41,10 @@ public sealed partial class TrendChartControl : UserControl
     public void SetData(IReadOnlyList<ChartPoint> points)
     {
         _points = points.Count > MaxPoints ? Downsample(points, MaxPoints) : points;
+        ChartAccessibility.Apply(Surface, "按键趋势图",
+            _points.Count == 0
+                ? "暂无数据"
+                : $"{_points.Count} 个数据点,最高 {_points.Max(p => p.Value):N0},最低 {_points.Min(p => p.Value):N0}");
         Render();
     }
 

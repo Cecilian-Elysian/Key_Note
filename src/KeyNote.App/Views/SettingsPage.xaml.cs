@@ -12,12 +12,16 @@ public sealed partial class SettingsPage : Page
 {
 
     private readonly Dictionary<string, object> _editors = [];
-    private readonly List<FrameworkElement> _rows = [];
+    private readonly List<RowEntry> _rows = [];
     private readonly List<(StackPanel Host, TextBlock Chevron)> _advSections = [];
     private readonly List<bool> _advOpen = [];
+    private readonly List<bool> _advUserState = [];
     private AppSettings _cfg = null!;
     private Border? _updateRow;
     private TextBlock? _updateText;
+
+    /// 一行设置项(含其后的分隔线与所属分组卡),用于搜索过滤时整体隐藏。
+    private sealed record RowEntry(FrameworkElement Row, FrameworkElement? Separator, FrameworkElement Group);
 
     public SettingsPage()
     {
@@ -40,6 +44,7 @@ public sealed partial class SettingsPage : Page
         _rows.Clear();
         _advSections.Clear();
         _advOpen.Clear();
+        _advUserState.Clear();
         _updateRow = null;
         _updateText = null;
 
@@ -83,13 +88,13 @@ public sealed partial class SettingsPage : Page
             titleRow.Children.Add(title);
             stack.Children.Add(titleRow);
 
-            AppendRows(stack, normal, trailingSeparator: advanced.Length > 0);
+            AppendRows(stack, normal, trailingSeparator: advanced.Length > 0, group: card);
 
             // 高级设置折叠区(默认折叠)
             if (advanced.Length > 0)
             {
                 var advHost = new StackPanel { Visibility = Visibility.Collapsed };
-                AppendRows(advHost, advanced, trailingSeparator: false);
+                AppendRows(advHost, advanced, trailingSeparator: false, group: card);
 
                 var chevron = new TextBlock
                 {
@@ -135,6 +140,8 @@ public sealed partial class SettingsPage : Page
                 {
                     var idx = _advSections.FindIndex(s => s.Host == advHost);
                     _advOpen[idx] = !_advOpen[idx];
+                    // 记录用户手动状态,搜索清空后据此恢复
+                    if (idx < _advUserState.Count) _advUserState[idx] = _advOpen[idx];
                     ApplyAdvState(idx);
                 };
 
@@ -144,6 +151,7 @@ public sealed partial class SettingsPage : Page
                 var idx = _advSections.Count;
                 _advSections.Add((advHost, chevron));
                 _advOpen.Add(false);
+                _advUserState.Add(false);
                 ApplyAdvState(idx);
             }
 
@@ -176,20 +184,25 @@ public sealed partial class SettingsPage : Page
     }
 
     /// 行 + 1px 分隔符追加;trailingSeparator = 末尾补一条(衔接后续区块)
-    private void AppendRows(StackPanel host, FieldSpec[] fields, bool trailingSeparator)
+    private void AppendRows(StackPanel host, FieldSpec[] fields, bool trailingSeparator, FrameworkElement group)
     {
         for (var i = 0; i < fields.Length; i++)
         {
-            host.Children.Add(BuildRow(fields[i]));
+            var row = BuildRow(fields[i]);
+            host.Children.Add(row);
+            FrameworkElement? separator = null;
             if (i < fields.Length - 1 || trailingSeparator)
             {
-                host.Children.Add(new Border
+                separator = new Border
                 {
                     Height = 1,
                     Background = new SolidColorBrush(Theme.UiColors.Divider),
                     Margin = new Thickness(14, 0, 14, 0),
-                });
+                };
+                host.Children.Add(separator);
             }
+            // 分隔线跟着行一起隐藏,否则搜索后留下孤立线条
+            _rows.Add(new RowEntry(row, separator, group));
         }
     }
 
@@ -234,23 +247,46 @@ public sealed partial class SettingsPage : Page
         grid.Children.Add(control);
 
         grid.Tag = spec.Title + " " + spec.Desc;
-        _rows.Add(grid);
         return grid;
     }
 
     private void ApplyFilter()
     {
         var q = SearchBox.Text.Trim();
-        // 搜索时强制展开所有高级区,清空后恢复折叠状态
+        var searching = q.Length > 0;
+
+        // 搜索时强制展开所有高级区;清空后恢复用户手动展开状态(此前直接全部折叠)
         for (var i = 0; i < _advSections.Count; i++)
         {
-            _advOpen[i] = q.Length > 0;
+            if (searching)
+            {
+                if (i < _advUserState.Count) _advUserState[i] = _advOpen[i];
+                _advOpen[i] = true;
+            }
+            else if (i < _advUserState.Count)
+            {
+                _advOpen[i] = _advUserState[i];
+            }
             ApplyAdvState(i);
         }
-        foreach (var row in _rows)
+
+        // 行 + 分隔线一起隐藏;整组无命中时连分组卡一起隐藏(不留空卡与孤立线条)
+        var groupHit = new Dictionary<FrameworkElement, bool>();
+        foreach (var entry in _rows)
         {
-            var hit = q.Length == 0 || (row.Tag as string ?? string.Empty).Contains(q, StringComparison.OrdinalIgnoreCase);
-            row.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
+            var hit = !searching
+                || (entry.Row.Tag as string ?? string.Empty).Contains(q, StringComparison.OrdinalIgnoreCase);
+            entry.Row.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
+            if (entry.Separator is not null)
+            {
+                entry.Separator.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
+            }
+            groupHit.TryGetValue(entry.Group, out var any);
+            groupHit[entry.Group] = any || hit;
+        }
+        foreach (var (group, any) in groupHit)
+        {
+            group.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 

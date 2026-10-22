@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
+using Microsoft.UI.Windowing;
 
 namespace KeyNote.App;
 
@@ -78,10 +79,8 @@ public sealed partial class MainWindow : Window
             if (parts.Length != 4) return;
             var x = int.Parse(parts[0]);
             var y = int.Parse(parts[1]);
-            var w = int.Parse(parts[2]);
-            var h = int.Parse(parts[3]);
-            if (w < 400 || h < 300) return;
-            AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(x, y, w, h));
+            // 尺寸固定 800×600(见 ResizeForDpi),这里只恢复位置,不用旧尺寸覆盖
+            AppWindow.Move(new PointInt32(x, y));
         }
         catch (Exception ex)
         {
@@ -196,6 +195,12 @@ public sealed partial class MainWindow : Window
             AppWindow.Resize(new SizeInt32(
                 (int)(LogicalWidth * scale),
                 (int)(LogicalHeight * scale)));
+            // 固定 800×600(AGENTS 硬约束:主窗口不响应式):此前可被任意拉伸并被持久化
+            if (AppWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.IsResizable = false;
+                presenter.IsMaximizable = false;
+            }
         }
         catch
         {

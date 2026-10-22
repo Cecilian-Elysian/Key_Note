@@ -30,13 +30,17 @@ public sealed partial class HourlyGridControl : UserControl
     {
         _grid = grid;
         _peak = 0;
+        var total = 0;
         for (var d = 0; d < 7; d++)
         {
             for (var h = 0; h < 24; h++)
             {
                 if (grid[d, h] > _peak) _peak = grid[d, h];
+                total += grid[d, h];
             }
         }
+        ChartAccessibility.Apply(Surface, "7×24 小时活跃度热力图",
+            total == 0 ? "暂无数据" : $"近 7 天共 {total:N0} 次按键,峰值 {_peak:N0}");
         Render();
     }
 

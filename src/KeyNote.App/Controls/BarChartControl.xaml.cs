@@ -20,6 +20,10 @@ public sealed partial class BarChartControl : UserControl
     public void SetData(IReadOnlyList<(string Key, long Count)> data)
     {
         _data = data;
+        ChartAccessibility.Apply(Surface, "常用按键条形图",
+            data.Count == 0
+                ? "暂无数据"
+                : $"共 {data.Count} 个按键,最高 {data[0].Key} × {data[0].Count:N0}");
         Render();
     }
 
@@ -52,8 +56,7 @@ public sealed partial class BarChartControl : UserControl
         double y = top;
         foreach (var (key, count) in _data)
         {
-            var name = key.Length > 8 ? key[..8] : key;
-            var lbl = new TextBlock
+            var name = key.Length > 8 ? key[..8] : key;            var lbl = new TextBlock
             {
                 Text = name,
                 FontSize = 11,
@@ -95,8 +98,11 @@ public sealed partial class BarChartControl : UserControl
                 Text = count.ToString("N0"),
                 FontSize = 11,
                 Foreground = UiColors.Brush(UiColors.FgSecondary),
+                TextAlignment = TextAlignment.Right,
             };
-            Canvas.SetLeft(val, plotX + bw + 6);
+            // 值标签右对齐到预留列末尾(此前按条长左排,满条时 7 位数会溢出画布被裁)
+            val.Measure(new Windows.Foundation.Size(valueW, 30));
+            Canvas.SetLeft(val, Math.Max(plotX, w - valueW));
             Canvas.SetTop(val, y + (barH - val.DesiredSize.Height) / 2);
             cv.Children.Add(val);
 

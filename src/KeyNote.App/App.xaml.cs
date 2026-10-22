@@ -264,7 +264,7 @@ public partial class App : Application
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
-        CrashLog.Write("unhandled", e.Exception);
+        CrashLog.Write("app.unhandled", e.Exception);
         // 交由系统处理(保持原语义)
         e.Handled = false;
     }

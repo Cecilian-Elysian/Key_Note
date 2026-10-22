@@ -73,6 +73,7 @@ public sealed partial class GhHeatmapControl : UserControl
             var active = daily.Count(v => v > 0);
             var maxVal = daily.Max();
             Summary = $"活跃 {active}/{_days} · 峰值 {maxVal:N0}";
+            ChartAccessibility.Apply(Surface, "年度按键热力图", Summary);
 
             Render();
         }

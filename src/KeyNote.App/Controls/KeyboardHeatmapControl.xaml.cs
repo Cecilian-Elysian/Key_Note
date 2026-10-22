@@ -37,6 +37,10 @@ public sealed partial class KeyboardHeatmapControl : UserControl
     {
         _counts = counts;
         _max = counts.Count > 0 ? counts.Values.Max() : 0;
+        ChartAccessibility.Apply(Surface, "键盘按键分布热力图",
+            counts.Count == 0
+                ? "暂无数据"
+                : $"共 {counts.Count} 个按键有记录,最高 {counts.OrderByDescending(kv => kv.Value).First().Key.ToUpperInvariant()} × {_max:N0}");
         Render();
     }
 

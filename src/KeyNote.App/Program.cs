@@ -31,6 +31,7 @@ public static class Program
     /// 已有实例在跑:把它的主窗口拉回前台
     private static void BringExistingToFront()
     {
+        // 按标题找主窗口;托盘隐藏消息窗口的标题是 "KeyNote.Tray",不会误命中
         var hwnd = FindWindowW(null, "KeyNote");
         if (hwnd == IntPtr.Zero) return;
         ShowWindow(hwnd, 9 /* SW_RESTORE */);

@@ -52,7 +52,8 @@ public sealed partial class SettingsPage
         ("关于", new[]
         {
             new FieldSpec(FieldKind.Info, "app_version", "当前版本", "程序与安装包版本信息。", Value: $"v{UpdateService.CurrentVersionText}"),
-            new FieldSpec(FieldKind.Action, "check_update", "检查更新", "查询 GitHub Releases 是否有新版本;发现新版后可打开下载页。", ActionKey: "update"),
+            new FieldSpec(FieldKind.Action, "check_update", "检查更新", "查询 GitHub Releases 是否有新版本;发现新版后可下载安装。", ActionKey: "update"),
+            new FieldSpec(FieldKind.Action, "quit_app", "退出 KeyNote", "关闭程序(隐藏托盘图标时唯一的退出入口)。", ActionKey: "quit"),
         }),
     };
 
