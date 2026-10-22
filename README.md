@@ -93,6 +93,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 key_note/
 ├── KeyNote.sln           # 解决方案
+├── CHANGELOG.md          # 版本变更记录(Release notes 来源)
 ├── src/
 │   ├── KeyNote.App/      # WinUI3 壳:App / MainWindow / 5 页 / 9 控件 / 8 服务
 │   └── KeyNote.Core/     # 无 UI:AppSettings / KeyNoteDb(4 分部) / InputHookService / AppPaths / CrashLog
@@ -150,7 +151,7 @@ key_note/
 1. 改 `src/KeyNote.App/KeyNote.App.csproj` 的 `<Version>`(安装包版本由 `build.ps1` 派生,不必手改 `.iss`)
 2. `powershell -ExecutionPolicy Bypass -File build.ps1` → 产出 `dist\`(便携)与 `installer\KeyNote_Setup.exe`
 3. `git tag v1.0.1 && git push --tags`
-4. 在 GitHub 仓库创建 Release:tag 选 `v1.0.1`,上传 `installer\KeyNote_Setup.exe` 作为资产
+4. 在 GitHub 仓库创建 Release:tag 选 `v1.0.1`,上传 `installer\KeyNote_Setup.exe` 作为资产,notes 抄 `CHANGELOG.md` 对应小节
 5. 应用内「检查更新」即可发现新版本(资产名需为 `KeyNote_Setup.exe`;无该资产时仍可打开 Release 页手动下载)
 
 ## 参与开发
