@@ -24,6 +24,7 @@ OutputBaseFilename=KeyNote_Setup
 Compression=lzma2/max
 SolidCompression=yes
 UninstallDisplayIcon={app}\KeyNote.App.exe
+SetupIconFile=icon.ico
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
@@ -47,7 +48,9 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\KeyNote"; Filename: "{app}\KeyNote.App.exe"
-Name: "{commondesktop}\KeyNote"; Filename: "{app}\KeyNote.App.exe"; Tasks: desktopicon
+; 用 {userdesktop} 而非 {commondesktop}:后者是 C:\Users\Public\Desktop,
+; 非管理员安装(PermissionsRequired=lowest)写不进去,快捷方式会静默失败
+Name: "{userdesktop}\KeyNote"; Filename: "{app}\KeyNote.App.exe"; Tasks: desktopicon
 Name: "{group}\说明 (README)"; Filename: "{app}\README.md"
 Name: "{group}\卸载 KeyNote"; Filename: "{uninstallexe}"
 
