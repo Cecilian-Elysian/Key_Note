@@ -117,7 +117,7 @@
 ## 待办(TODO)
 - [x] ~~应用内更新检查~~:已实现(`Services/UpdateService.cs` + 设置页「关于」分组 + 托盘入口 + 启动每日静默检查)
 - [x] ~~应用内静默更新~~:已实现(`UpdateInstaller` + `UpdatePrompt` + `UpdateServiceApp`:应用内下载 → 大小校验 → 拉起安装器自动替换并重启)
-- [ ] **发布体积瘦身**:`dist` 95MB 中约 88MB 是 Windows App SDK 运行时;可裁未用模块约 60 文件 / 12MB,`Microsoft.Windows.SDK.NET.dll`(23.8MB)需单独实验验证
+- [ ] **发布体积瘦身**(低优先级):`dist` 95MB 中约 88MB 是 Windows App SDK 运行时,自包含零依赖是既定路线。对标 MAA(MaaWpfGui 同为 `SelfContained=true` + `PublishTrimmed=false`,发行数百 MB 不裁剪),维持现状是 .NET GUI 正解;如仍想省,只剩逐文件裁剪实验(约 60 文件 / 12MB,每次升级 SDK 需重验)
 
 ## 已知取舍(Python → C# 迁移)
 - `window_alpha`:WinUI3 不支持整窗 alpha,改为内容区不透明度

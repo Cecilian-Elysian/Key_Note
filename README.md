@@ -141,9 +141,9 @@ key_note/
   - 比对最新稳定版与当前程序集版本(预发布/草稿排除);发现新版 → 托盘气泡 → 确认框 → 应用内下载 → 自动替换并重启
   - 实现见 `Services/UpdateService.cs` / `UpdateInstaller.cs` / `UpdatePrompt.cs`;不引入更新框架依赖(不用 Squirrel/Velopack)
 - [x] ~~应用内静默更新~~:已实现(应用内下载 + 大小校验 + 拉起安装器,安装器用 Restart Manager 自动替换并重启)
-- [ ] **发布体积瘦身**:当前 `dist` 95MB 中约 88MB 是 Windows App SDK 自带运行时
+- [ ] **发布体积瘦身**(低优先级):当前 `dist` 95MB 中约 88MB 是 Windows App SDK 自带运行时,自包含零依赖是既定路线(对标 MAA:同为 self-contained、不裁剪,体积是 .NET GUI 的必要成本)
   - 已确认 `Microsoft.Windows.SDK.NET.dll` 单文件占 23.8MB(疑似重复的旧式 SDK 投影),需实验验证
-  - 可裁项:Widgets / AI / 通知推送 / 网页组件 / 任务调度 等应用未使用的模块(约 60 文件 / 12MB)
+  - 可裁项:Widgets / AI / 通知推送 / 网页组件 / 任务调度 等应用未使用的模块(约 60 文件 / 12MB,每次升级 SDK 需重验)
   - 更彻底的做法:改 `WindowsAppSDKSelfContained=false`,但目标机需预装 Windows App Runtime(本机已装 1.7)
 
 ### 发布流程
